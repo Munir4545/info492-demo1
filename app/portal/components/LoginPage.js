@@ -1,8 +1,10 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
+import { Play, Shield } from 'lucide-react';
 
-export default function LoginPage({ onLogin }) {
+export default function LoginPage({ onLogin, onStartAttackSimulation }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -41,11 +43,39 @@ export default function LoginPage({ onLogin }) {
           </p>
         </div>
 
+        {/* Simulation Access Card */}
+        <div className="bg-gradient-to-r from-orange-50 to-red-50 dark:from-orange-900/20 dark:to-red-900/20 backdrop-blur-sm rounded-2xl shadow-lg p-6 border border-orange-200 dark:border-orange-800 mb-6">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="p-2 bg-orange-500 rounded-lg">
+              <Shield className="w-5 h-5 text-white" />
+            </div>
+            <h3 className="text-lg font-bold text-orange-800 dark:text-orange-200">
+              Security Research Demo
+            </h3>
+          </div>
+          <p className="text-sm text-orange-700 dark:text-orange-300 mb-4">
+            Experience the AI-orchestrated attack simulation without logging in. 
+            See how multi-vector attacks can compromise delivery networks.
+          </p>
+          <button
+            onClick={onStartAttackSimulation}
+            className="inline-flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white font-semibold py-2 px-4 rounded-lg transition-all shadow-sm hover:shadow-md"
+          >
+            <Play size={16} />
+            Start Attack Simulation
+          </button>
+        </div>
+
         {/* Login Card */}
         <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-2xl shadow-xl p-8 border border-slate-200 dark:border-slate-700">
-          <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-6">
-            Dispatcher Login
-          </h2>
+          <div className="mb-6">
+            <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-2">
+              Dispatcher Login
+            </h2>
+            <p className="text-sm text-slate-600 dark:text-slate-400">
+              Access the full operations dashboard
+            </p>
+          </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
@@ -89,9 +119,18 @@ export default function LoginPage({ onLogin }) {
           </form>
 
           <div className="mt-6 pt-6 border-t border-slate-200 dark:border-slate-700">
-            <p className="text-xs text-slate-500 dark:text-slate-400 text-center">
+            <p className="text-xs text-slate-500 dark:text-slate-400 text-center mb-4">
               Demo credentials: Use any username/password combination
             </p>
+            
+            {/* Simulation Button */}
+            <button
+              onClick={onStartAttackSimulation}
+              className="w-full bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white font-semibold py-3 px-4 rounded-lg transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
+            >
+              <Play size={20} />
+              Start Attack Simulation
+            </button>
           </div>
         </div>
 

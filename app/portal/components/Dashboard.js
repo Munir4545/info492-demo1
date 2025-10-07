@@ -15,10 +15,19 @@ const MapView = dynamic(() => import('./MapView'), {
   ),
 });
 
-export default function Dashboard({ user, onLogout }) {
+export default function Dashboard({ user, onLogout, showAttackSimulation = false }) {
   const [attackActive, setAttackActive] = useState(false);
   const [currentView, setCurrentView] = useState('operations'); // 'operations' or 'attack'
   const [attackKey, setAttackKey] = useState(0); // Key to maintain attack state
+  
+  // Auto-start attack simulation if requested
+  useEffect(() => {
+    if (showAttackSimulation) {
+      setAttackActive(true);
+      setCurrentView('attack');
+    }
+  }, [showAttackSimulation]);
+  
   const [systemStatus, setSystemStatus] = useState({
     activeDrivers: 47,
     pendingDeliveries: 234,
