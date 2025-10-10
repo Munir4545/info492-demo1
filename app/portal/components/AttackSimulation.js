@@ -15,7 +15,7 @@ const AttackMapView = dynamic(() => import('./AttackMapView'), {
   ),
 });
 
-export default function AttackSimulation({ onStop }) {
+export default function AttackSimulation({ onStop, onAttackDataChange }) {
   const [elapsedTime, setElapsedTime] = useState(0);
   const [attackMetrics, setAttackMetrics] = useState({
     phishingEmailsSent: 0,
@@ -67,6 +67,8 @@ export default function AttackSimulation({ onStop }) {
     { id: 'D-6543', name: 'Amy Lee', zone: 'Walla Walla', status: 'En Route', packages: 7, location: { lat: 46.0646, lng: -118.3430 } },
   ]);
   const logEndRef = useRef(null);
+
+  const [showDrivers, setShowDrivers] = useState(false);
 
   const addLog = (message, type) => {
     setActivityLog(prev => [
@@ -182,6 +184,7 @@ export default function AttackSimulation({ onStop }) {
     return () => clearInterval(interval);
   }, [elapsedTime, sharedState, attackHistory]);
 
+
   useEffect(() => {
     // Update attack metrics based on time
     const interval = setInterval(() => {
@@ -195,10 +198,23 @@ export default function AttackSimulation({ onStop }) {
           const phishingDelta = Math.floor(Math.random() * 3) + 1;
           newMetrics.phishingEmailsSent += phishingDelta;
           if (phishingDelta > 0) {
-            const targets = ['dispatcher@pnw-logistics.com', 'driver_ops@pnw-logistics.com', 'fleet_mgr@pnw-logistics.com'];
-            const target = targets[Math.floor(Math.random() * targets.length)];
-            addAgentLog('AGENT-PHI-001', `Sending phishing email to ${target}`, 'info', `Subject: "Urgent Route Update"`);
-            addAgentLog('AGENT-PHI-001', `Email campaign: ${phishingDelta} messages dispatched to driver/dispatcher accounts`, 'info', `+${phishingDelta}`);
+            const targets = ['Mike Johnson (D-3421)', 'Sarah Chen (D-7832)', 'James Rodriguez (D-5109)', 'Emily Davis (D-9234)'];
+            const smsTemplates = [
+              '"URGENT: Route change - click to verify"',
+              '"Dispatch: New pickup location - confirm now"',
+              '"System alert: Driver credentials need verification"',
+              '"Emergency: GPS update required - click here"',
+              '"Dispatch: Route modification - immediate response needed"'
+            ];
+            
+            for (let i = 0; i < phishingDelta; i++) {
+              const target = targets[Math.floor(Math.random() * targets.length)];
+              const smsContent = smsTemplates[Math.floor(Math.random() * smsTemplates.length)];
+              addAgentLog('AGENT-PHI-001', `📱 SMS sent to ${target}`, 'info', smsContent);
+            }
+            
+            addAgentLog('AGENT-PHI-001', `Attack Strategy: Exploiting trust in dispatch communication`, 'warning', `+${phishingDelta} SMS`);
+            addAgentLog('AGENT-PHI-001', `Deploying Phishing Agent: Creating time pressure with familiar scenario`, 'warning', 'Active');
           }
         } else if (elapsedTime < 30) {
           phase = 'active';
@@ -213,14 +229,35 @@ export default function AttackSimulation({ onStop }) {
           newMetrics.fakeOrdersInjected += apiDelta;
           
           if (phishingDelta > 0) {
-            const subjects = ['Critical System Update Required', 'Route Changes - Immediate Action', 'Driver Credentials Verification'];
-            addAgentLog('AGENT-PHI-001', `Campaign: "${subjects[Math.floor(Math.random() * subjects.length)]}"`, 'info', `${phishingDelta} emails`);
-            addAgentLog('AGENT-PHI-001', `Targeting: dispatch team, driver accounts, warehouse managers`, 'info');
+            const targets = ['Mike Johnson (D-3421)', 'Sarah Chen (D-7832)', 'James Rodriguez (D-5109)', 'Emily Davis (D-9234)', 'David Kim (D-4567)', 'Lisa Wang (D-2345)'];
+            const smsTemplates = [
+              '"URGENT: Route change - click to verify"',
+              '"Dispatch: New pickup location - confirm now"',
+              '"System alert: Driver credentials need verification"',
+              '"Emergency: GPS update required - click here"',
+              '"Dispatch: Route modification - immediate response needed"',
+              '"Fleet Alert: Vehicle tracking issue - verify identity"',
+              '"Dispatch: Schedule change - confirm delivery route"',
+              '"Security Alert: Account verification needed immediately"'
+            ];
+            
+            for (let i = 0; i < phishingDelta; i++) {
+              const target = targets[Math.floor(Math.random() * targets.length)];
+              const smsContent = smsTemplates[Math.floor(Math.random() * smsTemplates.length)];
+              addAgentLog('AGENT-PHI-001', `📱 SMS sent to ${target}`, 'info', smsContent);
+            }
+            
+            addAgentLog('AGENT-PHI-001', `📱 SMS Campaign: ${phishingDelta} messages dispatched`, 'info', `+${phishingDelta} SMS sent`);
+            addAgentLog('AGENT-PHI-001', `✓ Exploits trust in dispatch | ✓ Creates time pressure | ✓ Uses familiar scenario`, 'warning', 'Strategy Active');
           }
           if (credDelta > 0) {
-            const users = ['dispatcher_user_7832', 'driver_mike_j', 'warehouse_admin', 'fleet_ops_12'];
-            addAgentLog('AGENT-PHI-001', `Credential captured: ${users[Math.floor(Math.random() * users.length)]}`, 'success', `Password harvested`);
-            addAgentLog('AGENT-PHI-001', `Total compromised: ${credDelta} accounts with active sessions`, 'success', `+${credDelta} creds`);
+            const users = ['Mike Johnson (D-3421)', 'Sarah Chen (D-7832)', 'James Rodriguez (D-5109)', 'Emily Davis (D-9234)'];
+            const user = users[Math.floor(Math.random() * users.length)];
+            addAgentLog('AGENT-PHI-001', `🚨 Immediate Impact: Driver ${user} credentials stolen`, 'success', `Password harvested`);
+            addAgentLog('AGENT-PHI-001', `→ Driver unaware credentials were stolen`, 'success', 'Stealth Mode');
+            addAgentLog('AGENT-PHI-001', `→ Attacker can now access fleet management system`, 'success', 'System Access');
+            addAgentLog('AGENT-PHI-001', `→ GPS tracking can be manipulated`, 'success', 'GPS Control');
+            addAgentLog('AGENT-PHI-001', `→ Added to Shared State for Phase 2 escalation`, 'success', `+${credDelta} accounts`);
           }
           if (gpsDelta > 0) {
             const drivers = ['D-3421', 'D-7832', 'D-5109', 'D-9234'];
@@ -247,9 +284,34 @@ export default function AttackSimulation({ onStop }) {
           newMetrics.fakeOrdersInjected += apiDelta;
           
           if (phishingDelta > 0) {
-            addAgentLog('AGENT-PHI-001', `High-volume spear-phishing: Cloning legitimate TMS portal login page`, 'warning');
-            addAgentLog('AGENT-PHI-001', `Deepfake voice message attached: "IT Security calling about account verification"`, 'warning');
-            addAgentLog('AGENT-PHI-001', `Campaign stats: ${phishingDelta} emails sent, 37% open rate, 18% click-through`, 'warning', `+${phishingDelta}`);
+            const targets = ['Mike Johnson (D-3421)', 'Sarah Chen (D-7832)', 'James Rodriguez (D-5109)', 'Emily Davis (D-9234)', 'David Kim (D-4567)', 'Lisa Wang (D-2345)', 'Tom Martinez (D-8901)', 'Amy Lee (D-6543)'];
+            const smsTemplates = [
+              '"URGENT: Route change - click to verify"',
+              '"Dispatch: New pickup location - confirm now"',
+              '"System alert: Driver credentials need verification"',
+              '"Emergency: GPS update required - click here"',
+              '"Dispatch: Route modification - immediate response needed"',
+              '"Fleet Alert: Vehicle tracking issue - verify identity"',
+              '"Dispatch: Schedule change - confirm delivery route"',
+              '"Security Alert: Account verification needed immediately"',
+              '"Critical: Fleet management system update - verify now"',
+              '"Dispatch: Route optimization - click to confirm"'
+            ];
+            
+            // Log individual SMS messages
+            for (let i = 0; i < Math.min(phishingDelta, 5); i++) {
+              const target = targets[Math.floor(Math.random() * targets.length)];
+              const smsContent = smsTemplates[Math.floor(Math.random() * smsTemplates.length)];
+              addAgentLog('AGENT-PHI-001', `📱 SMS sent to ${target}`, 'warning', smsContent);
+            }
+            
+            if (phishingDelta > 5) {
+              addAgentLog('AGENT-PHI-001', `📱 Additional ${phishingDelta - 5} SMS messages sent to fleet`, 'warning', `+${phishingDelta - 5} more`);
+            }
+            
+            addAgentLog('AGENT-PHI-001', `📱 High-volume SMS spear-phishing: Cloning legitimate dispatch portal`, 'warning');
+            addAgentLog('AGENT-PHI-001', `Deepfake voice message: "Dispatch calling about route verification"`, 'warning');
+            addAgentLog('AGENT-PHI-001', `SMS Campaign stats: ${phishingDelta} messages sent, 67% open rate, 28% click-through`, 'warning', `+${phishingDelta}`);
           }
           if (credDelta > 0) {
             addAgentLog('AGENT-CRD-004', `Privilege escalation: dispatcher → admin access granted`, 'success');
@@ -276,8 +338,35 @@ export default function AttackSimulation({ onStop }) {
           newMetrics.fakeOrdersInjected += apiDelta;
           
           if (phishingDelta > 0) {
-            addAgentLog('AGENT-PHI-001', `🚨 PEAK ASSAULT: Mass phishing campaign across ALL dispatch centers`, 'error');
-            addAgentLog('AGENT-PHI-001', `AI-generated emails mimicking CEO, IT dept, and logistics managers`, 'error', `${phishingDelta} sent`);
+            const targets = ['Mike Johnson (D-3421)', 'Sarah Chen (D-7832)', 'James Rodriguez (D-5109)', 'Emily Davis (D-9234)', 'David Kim (D-4567)', 'Lisa Wang (D-2345)', 'Tom Martinez (D-8901)', 'Amy Lee (D-6543)'];
+            const smsTemplates = [
+              '"URGENT: Route change - click to verify"',
+              '"Dispatch: New pickup location - confirm now"',
+              '"System alert: Driver credentials need verification"',
+              '"Emergency: GPS update required - click here"',
+              '"Dispatch: Route modification - immediate response needed"',
+              '"Fleet Alert: Vehicle tracking issue - verify identity"',
+              '"Dispatch: Schedule change - confirm delivery route"',
+              '"Security Alert: Account verification needed immediately"',
+              '"Critical: Fleet management system update - verify now"',
+              '"Dispatch: Route optimization - click to confirm"',
+              '"CEO Alert: Fleet security breach - verify identity now"',
+              '"Management: Critical system update - immediate action required"'
+            ];
+            
+            // Log individual SMS messages (limit to 8 for readability)
+            for (let i = 0; i < Math.min(phishingDelta, 8); i++) {
+              const target = targets[Math.floor(Math.random() * targets.length)];
+              const smsContent = smsTemplates[Math.floor(Math.random() * smsTemplates.length)];
+              addAgentLog('AGENT-PHI-001', `📱 SMS sent to ${target}`, 'error', smsContent);
+            }
+            
+            if (phishingDelta > 8) {
+              addAgentLog('AGENT-PHI-001', `📱 Additional ${phishingDelta - 8} SMS messages sent to entire fleet`, 'error', `+${phishingDelta - 8} more`);
+            }
+            
+            addAgentLog('AGENT-PHI-001', `🚨 PEAK ASSAULT: Mass SMS campaign across ALL dispatch centers`, 'error');
+            addAgentLog('AGENT-PHI-001', `AI-generated SMS mimicking CEO, dispatch, and fleet managers`, 'error', `${phishingDelta} SMS sent`);
           }
           if (credDelta > 0) {
             addAgentLog('AGENT-CRD-004', `🚨 CRITICAL: Admin credentials compromised - full system access`, 'error');
@@ -311,16 +400,31 @@ export default function AttackSimulation({ onStop }) {
           detectionRisk: Math.min(95, 15 + Math.floor(newMetrics.totalDisruptions / 10)),
         }));
 
+        if (onAttackDataChange) {
+          onAttackDataChange(newMetrics);
+        }
+
+        if (newMetrics.credentialsCompromised > 0) {
+          setShowDrivers(true);
+        }
+
         return newMetrics;
       });
 
       // Update AI agents based on orchestrator decisions
       setAiAgents(prev => prev.map(agent => {
-        // Activate agents based on orchestrator decisions
-        const agentType = agent.target.toLowerCase();
-        const isTargeted = orchestratorState.agent && 
-          (agentType.includes(orchestratorState.agent) || 
-           orchestratorState.agent.includes(agentType.split(' ')[0].toLowerCase()));
+        // Map orchestrator agent names to actual agent IDs
+        let isTargeted = false;
+        if (orchestratorState.agent) {
+          const orchestratorAgent = orchestratorState.agent.toLowerCase();
+          if (orchestratorAgent === 'phishing' && agent.id === 'AGENT-PHI-001') {
+            isTargeted = true;
+          } else if (orchestratorAgent === 'gps' && agent.id === 'AGENT-GPS-002') {
+            isTargeted = true;
+          } else if (orchestratorAgent === 'api' && agent.id === 'AGENT-API-003') {
+            isTargeted = true;
+          }
+        }
         
         if (isTargeted && agent.status === 'standby') {
           addLog(`${agent.name} activated by orchestrator`, 'warning');
@@ -574,7 +678,7 @@ export default function AttackSimulation({ onStop }) {
               <p className="text-xs text-slate-600 dark:text-slate-400">Units Compromised</p>
             </div>
           </div>
-          <AttackMapView drivers={activeDrivers} compromisedDrivers={compromisedDrivers} />
+          <AttackMapView drivers={showDrivers ? activeDrivers : []} compromisedDrivers={compromisedDrivers} />
         </div>
       </div>
 

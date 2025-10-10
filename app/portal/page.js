@@ -8,6 +8,8 @@ export default function LogisticsPortal() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState(null);
   const [showAttackSimulation, setShowAttackSimulation] = useState(false);
+  const [attackData, setAttackData] = useState({ fakeOrdersInjected: 0 });
+  const [showDriversOnMap, setShowDriversOnMap] = useState(false);
 
   const handleLogin = (userData) => {
     setIsAuthenticated(true);
@@ -18,6 +20,8 @@ export default function LogisticsPortal() {
     setIsAuthenticated(false);
     setUser(null);
     setShowAttackSimulation(false);
+    setAttackData({ fakeOrdersInjected: 0 });
+    setShowDriversOnMap(false);
   };
 
   const handleStartAttackSimulation = () => {
@@ -31,10 +35,17 @@ export default function LogisticsPortal() {
     setIsAuthenticated(true);
   };
 
+  const handleAttackDataChange = (newData) => {
+    setAttackData(prevData => ({ ...prevData, ...newData }));
+    if (newData.credentialsCompromised > 0) {
+      setShowDriversOnMap(true);
+    }
+  };
+
   if (!isAuthenticated) {
     return <LoginPage onLogin={handleLogin} onStartAttackSimulation={handleStartAttackSimulation} />;
   }
 
-  return <Dashboard user={user} onLogout={handleLogout} showAttackSimulation={showAttackSimulation} />;
+  return <Dashboard user={user} onLogout={handleLogout} showAttackSimulation={showAttackSimulation} attackData={attackData} onAttackDataChange={handleAttackDataChange} />;
 }
 

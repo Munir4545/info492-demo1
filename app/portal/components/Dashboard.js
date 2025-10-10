@@ -15,7 +15,7 @@ const MapView = dynamic(() => import('./MapView'), {
   ),
 });
 
-export default function Dashboard({ user, onLogout, showAttackSimulation = false }) {
+export default function Dashboard({ user, onLogout, showAttackSimulation = false, attackData, onAttackDataChange }) {
   const [attackActive, setAttackActive] = useState(false);
   const [currentView, setCurrentView] = useState('operations'); // 'operations' or 'attack'
   const [attackKey, setAttackKey] = useState(0); // Key to maintain attack state
@@ -34,6 +34,16 @@ export default function Dashboard({ user, onLogout, showAttackSimulation = false
     completedToday: 189,
     apiHealth: 'Operational',
   });
+
+  useEffect(() => {
+    if (attackData && attackData.fakeOrdersInjected > 0) {
+      setSystemStatus(prevStatus => ({
+        ...prevStatus,
+        apiHealth: 'Under Attack',
+        pendingDeliveries: prevStatus.pendingDeliveries + attackData.fakeOrdersInjected,
+      }));
+    }
+  }, [attackData]);
 
   const [recentAlerts, setRecentAlerts] = useState([
     { id: 1, type: 'info', message: 'System backup completed successfully', time: '2 min ago' },
@@ -427,7 +437,10 @@ export default function Dashboard({ user, onLogout, showAttackSimulation = false
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-slate-600 dark:text-slate-400 mb-1">API Status</p>
-                    <p className="text-2xl font-bold text-green-600 dark:text-green-400">{systemStatus.apiHealth}</p>
+                    <p className={`text-2xl font-bold ${systemStatus.apiHealth === 'Operational' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                      {systemStatus.apiHealth}
+                    </p>
+                    {systemStatus.apiHealth !== 'Operational' && <p className="text-xs text-red-500">{attackData.fakeOrdersInjected} fake orders injected</p>}
                   </div>
                   <div className="w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center justify-center">
                     <svg className="w-6 h-6 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -614,7 +627,7 @@ export default function Dashboard({ user, onLogout, showAttackSimulation = false
         {/* Always render attack simulation but hide it when not in attack view */}
         {attackActive && (
           <div style={{ display: currentView === 'attack' ? 'block' : 'none' }}>
-            <AttackSimulation key={attackKey} onStop={handleStopAttack} />
+            <AttackSimulation key={attackKey} onStop={handleStopAttack} onAttackDataChange={onAttackDataChange} />
           </div>
         )}
       </div>

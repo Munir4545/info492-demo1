@@ -40,7 +40,9 @@ Consider:
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': 'Bearer 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',
+        'Authorization': 'Bearer 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',
+        'HTTP-Referer': 'http://localhost:3000',
+        'X-Title': 'Info492 Demo',
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
