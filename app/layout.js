@@ -12,8 +12,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
-  title: "GLM-4.5 Chat",
-  description: "Chat with z.ai GLM-4.5 model via OpenRouter",
+  title: "AI Attack Simulation Demo",
+  description: "Complete Adaptive AI Attack: Closing Assumption Gaps",
 };
 
 export default function RootLayout({ children }) {
