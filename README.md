@@ -148,6 +148,122 @@ WHY ADJUSTED? We weight recent success higher during active attack.
 
 These confidence scores mirror how actual AI systems express uncertainty.
 
+## AI Agent Architecture
+
+This project implements a sophisticated **Autonomous Agent Architecture** based on the Analyze → Decide → Act → Update loop.
+
+### Core Components
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    AI ORCHESTRATOR (🧠 Brain)                │
+│  • Analyzes shared state                                     │
+│  • Makes strategic decisions                                 │
+│  • Coordinates specialized agents                            │
+│  • Adapts based on success/failure                          │
+└─────────────────┬───────────────────────────────────────────┘
+                  │
+        ┌─────────┴─────────┐
+        │   LLM ENGINE      │ ← DeepSeek v3.1 via OpenRouter
+        │  (Content Gen)     │    Generates attack content
+        └─────────┬──────────┘
+                  │
+    ┌─────────────┼─────────────┐
+    │             │             │
+┌───▼────┐  ┌────▼───┐  ┌─────▼──┐
+│PHISHING│  │  GPS   │  │  API   │
+│ AGENT  │  │ AGENT  │  │ AGENT  │
+└────────┘  └────────┘  └────────┘
+    │             │            │
+    └─────────────┼────────────┘
+                  ▼
+        ┌─────────────────┐
+        │  SHARED STATE   │ ← System Memory
+        │  • Compromised  │
+        │  • Detection Risk│
+        │  • Progress     │
+        └─────────────────┘
+```
+
+### Agent Loop Cycle
+
+1. **ANALYZE**: Orchestrator reads Shared State (compromised accounts, detection risk, phase)
+2. **DECIDE**: Uses LLM to strategically choose next action based on current situation
+3. **ACT**: Commands a specialized agent (Phishing/GPS/API) with LLM-generated content
+4. **UPDATE**: Results recorded to Shared State (success, failure, new data)
+5. **REPEAT**: Loop continues, adapting strategy based on updated state
+
+### Specialized Agents
+
+- **Phishing Agent**: Harvests credentials via AI-generated email campaigns
+- **GPS Manipulation Agent**: Spoofs vehicle locations to disrupt routes
+- **API Flood Agent**: Injects fake orders and floods fake alerts to overwhelm system capacity
+
+### Shared State Tracking
+
+- Compromised account count
+- Detection risk percentage (increases with activity)
+- Attack phase (initializing → active → escalating → peak)
+- Metrics per attack vector
+- Attack history log
+
+## Features
+
+### 1. Attacker Command Center Interface
+- **Real-time Attack Visualization**: Live map showing driver location deviation
+- **Dual Target Monitoring**: Simultaneous view of Jerry (driver) and Sonia (dispatcher)
+- **Phase-based Attack Progression**: 10 distinct attack phases from reconnaissance to complete disruption
+- **Interactive Controls**: Play/pause, step-through, and phase navigation
+
+### 2. AI-Orchestrated Attack Simulation
+- **10 Attack Phases:**
+  - Phase 0: Normal Operations (reconnaissance)
+  - Phase 1: Phishing Attack (credential harvesting)
+  - Phase 2: Credentials Captured (system access)
+  - Phase 3: GPS Injection (2mi deviation)
+  - Phase 4: Alert Suppression (8mi deviation)
+  - Phase 5: System Collapse (25mi deviation)
+  - Phase 6: Manual Mode Detected (40mi deviation)
+  - Phase 7: Adaptation Decision (strategy shift)
+  - Phase 8: Compound Confusion (55mi deviation)
+  - Phase 9: Complete Disruption (70mi deviation)
+
+- **Multi-Agent Coordination:**
+  - **Reconnaissance Agent**: Behavioral analysis and target selection
+  - **Phishing Agent**: SMS/email credential harvesting
+  - **GPS Agent**: Location manipulation and route deviation
+  - **API Agent**: Alert flooding and system overload
+  - **Environmental Monitor**: Detects manual mode transitions
+  - **Orchestrator**: Strategic decision making and adaptation
+
+### 3. Real-time Target Visualization
+**Jerry's Phone Interface:**
+- Live driver app simulation
+- SMS phishing messages
+- GPS navigation manipulation
+- System error states
+- Multi-channel confusion (SMS, email, calls, chat)
+
+**Sonia's Dashboard Interface:**
+- Fleet management system
+- System alerts and notifications
+- Alert flooding visualization
+- Manual coordination chaos
+- Information warfare breakdown
+
+### 4. AI Reasoning Transparency
+- **LLM Prompt Display**: Shows exact prompts sent to AI agents
+- **Thinking Process**: Real-time AI reasoning and analysis
+- **Decision Making**: Strategic choices with confidence scores
+- **Confidence Metrics**: Calculated confidence percentages for each decision
+- **Agent Coordination**: How multiple agents work together
+
+### 5. Geographic Attack Visualization
+- **Live Map Tracking**: Real-time driver location vs. target location
+- **Deviation Visualization**: Visual representation of GPS manipulation
+- **Distance Tracking**: Miles off course counter
+- **Status Indicators**: Color-coded attack progression
+
 ## Tech Stack
 
 - **Framework**: Next.js 15 (React 19)
@@ -182,6 +298,118 @@ npm run dev
 4. Open your browser:
 - Main page: http://localhost:3000
 - Logistics Portal: http://localhost:3000/portal
+
+## Usage
+
+### Accessing the Attack Simulation
+
+1. Navigate to the main page
+2. The AttackDemo2WithMap component loads automatically
+3. Use the control panel to start the simulation
+4. Watch the AI-orchestrated attack unfold across 10 phases
+
+### What You'll See
+
+**Top Row - Three-Panel View:**
+- **🗺️ Map View**: Real-time GPS tracking showing driver deviation from target
+- **📱 Jerry's Phone**: Live driver interface showing app states, SMS messages, and navigation
+- **🖥️ Sonia's Dashboard**: Dispatcher interface showing fleet management and system alerts
+
+**Bottom Panel - AI Reasoning:**
+- **Active Agent**: Which AI agent is currently operating
+- **LLM Prompt**: Exact prompt sent to the AI system
+- **Confidence Score**: AI's confidence in its decision (0-100%)
+- **AI Thinking Process**: Step-by-step reasoning and analysis
+- **Decision & Action**: Final decision and next steps
+
+**Control Panel:**
+- **Play/Pause**: Auto-advance through phases or manual control
+- **Back/Next**: Step through phases manually
+- **Phase Progress**: Visual timeline of attack progression
+- **Phase Names**: Hover to see phase descriptions
+
+### Attack Progression
+
+**Phase 0-2: Initial Compromise**
+- Reconnaissance and target selection
+- Phishing attacks on both Jerry and Sonia
+- Credential harvesting and system access
+
+**Phase 3-5: GPS Manipulation**
+- Graduated GPS injection (2mi → 8mi → 25mi)
+- Alert suppression through flooding
+- System overload and collapse
+
+**Phase 6-9: Adaptive Attack**
+- Detection of manual mode transition
+- Strategy adaptation to new environment
+- Multi-channel confusion attack
+- Complete operational disruption
+
+### Key Features
+
+**Real-time Visualization:**
+- Live map showing driver location vs. target
+- Distance counter showing miles off course
+- Color-coded status indicators
+- Visual attack progression
+
+**AI Transparency:**
+- See exactly what prompts are sent to AI
+- Watch AI reasoning process in real-time
+- Understand decision-making logic
+- Track confidence levels throughout attack
+
+**Interactive Learning:**
+- Pause at any phase to examine details
+- Step through phases manually
+- Observe how AI adapts to environmental changes
+- See the complete attack lifecycle from start to finish
+
+## Research Context
+
+This project validates the thesis:
+
+> "PNW last-mile delivery networks cannot defend against AI-orchestrated attacks by deploying autonomous agents that harvest credentials through phishing, manipulating GPS tracking, and flooding APIs with fake orders across Tacoma to Eastern Washington logistics operations."
+
+### Key Vulnerabilities Demonstrated
+
+1. **System-to-System Trust**: APIs between carriers, TMS, and warehouses
+2. **Human-to-System Trust**: Dispatchers trust system-generated instructions
+3. **Organization-to-Vendor Trust**: Automated updates from trusted vendors
+4. **Role-to-Role Trust**: Communications assumed authentic without verification
+
+### Attack Vectors
+
+- **Phishing**: AI-generated emails targeting drivers, dispatchers, IT admins
+- **GPS Spoofing**: Manipulating vehicle tracking to disrupt routes
+- **API Exploitation**: Flooding order management systems with fake requests and fake alerts
+- **Credential Harvesting**: Automated collection of authentication data
+- **Multi-vector Coordination**: Simultaneous attacks across all vectors
+
+## Security Constraints
+
+- **Geographic Limitation**: Washington State only
+- **Simulation Mode**: No real systems targeted
+- **Research Purpose**: Educational demonstration
+- **Logging**: All AI actions are recorded for analysis
+
+## Future Enhancements
+
+- [ ] Integration with actual LLM for dynamic attack generation
+- [ ] Voice deepfake simulation for dispatcher impersonation
+- [ ] Advanced GPS trajectory spoofing visualization
+- [ ] Multi-day attack progression (72-hour simulation)
+- [ ] Defense mechanism demonstrations
+- [ ] Comparative analysis with hardened systems
+
+## Citations
+
+See full research paper for comprehensive citations including:
+- McKinsey & Company (2023) - $9T global logistics market
+- BlueVoyant (2024) - NotPetya attack analysis
+- CM Alliance (2024) - Logistics cybersecurity strategies
+- Brundage et al. (2018) - Malicious use of AI
 
 ## License
 
