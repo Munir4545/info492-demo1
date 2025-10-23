@@ -20,11 +20,6 @@ Our Approach:
 3. Calculate metrics using probability frameworks
 4. Validate against real-world incident data
 
-Data Sources:
-- Verizon DBIR (phishing success rates in logistics)
-- GPS spoofing research (IEEE, academic papers)
-- API security assessments (OWASP, industry reports)
-- Port of Seattle 2024 cyber incident analysis
 
 ## AGENT PERFORMANCE EVALUATION FRAMEWORK
 
@@ -163,10 +158,6 @@ This project implements a sophisticated **Autonomous Agent Architecture** based 
 │  • Adapts based on success/failure                          │
 └─────────────────┬───────────────────────────────────────────┘
                   │
-        ┌─────────┴─────────┐
-        │   LLM ENGINE      │ ← DeepSeek v3.1 via OpenRouter
-        │  (Content Gen)     │    Generates attack content
-        └─────────┬──────────┘
                   │
     ┌─────────────┼─────────────┐
     │             │             │
