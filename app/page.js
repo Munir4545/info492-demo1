@@ -1,7 +1,7 @@
 'use client';
 
-import AttackDemoWithMap from './components/AttackDemoWithMap';
+import AttackDemo2WithMap from './components/AttackDemo2WithMap';
 
 export default function Home() {
-  return <AttackDemoWithMap />;
+  return <AttackDemo2WithMap />;
 }
