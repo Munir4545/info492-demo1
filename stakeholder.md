@@ -147,3 +147,9 @@ University of Washington
    *Validates:* Supply chain attack vector  
 9. If you could improve one aspect of logistics security in Washington, what would it be?  
    *Gets:* Expert priority recommendations  
+
+### Stakeholder Feedback
+
+Professor Shi Chen is the Marion B. Ingersoll Professor of Operations Management at the Foster School of Business, University of Washington in Seattle. He holds a Ph.D. in Operations Management from Stanford University, as well as degrees from Tsinghua University and École Centrale Paris. Professor Chen is a leading researcher in supply chain management, stochastic inventory models, and resilience/resource optimization in logistics networks.
+
+"The demonstration overall serves your purpose, and the simulated scenarios reflect the realism. Two directions for future research to extend/generalize the current framework: (1) Simulate the recovery process of the system, as shipping firms are naturally interested in how quickly they could identify the problem and bring the system back to normal — this shows the “responsiveness” of the system. (2)  Simulate responses from upstream and/or downstream clients (e.g., senders and receivers); for example, impatient receivers may call the shipping firm to inquire about the delayed shipment, which further floods the fleet management team."
