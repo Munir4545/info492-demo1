@@ -2,6 +2,45 @@
 
 A demonstration platform showcasing vulnerabilities in last-mile delivery systems through AI-orchestrated multi-vector attacks.
 
+## Table of Contents
+
+- [Project Team](#project-team)
+- [Research Question](#research-question)
+- [Methodology](#methodology-simulation-based-threat-modeling)
+- [Agent Performance Evaluation Framework](#agent-performance-evaluation-framework)
+- [Detection Risk Methodology](#detection-risk-methodology)
+- [Grounding Metrics in Reality](#grounding-metrics-in-reality)
+- [How the LLM "Decides"](#how-the-llm-decides-prompt-engineering-architecture)
+- [Confidence Score Methodology](#confidence-score-methodology)
+- [AI Agent Architecture](#ai-agent-architecture)
+  - [Core Components](#core-components)
+  - [Agent Loop Cycle](#agent-loop-cycle)
+  - [Specialized Agents](#specialized-agents)
+  - [Shared State Tracking](#shared-state-tracking)
+- [Features](#features)
+  - [Attacker Command Center Interface](#1-attacker-command-center-interface)
+  - [AI-Orchestrated Attack Simulation](#2-ai-orchestrated-attack-simulation)
+  - [Real-time Target Visualization](#3-real-time-target-visualization)
+  - [AI Reasoning Transparency](#4-ai-reasoning-transparency)
+  - [Geographic Attack Visualization](#5-geographic-attack-visualization)
+- [Tech Stack](#tech-stack)
+- [Getting Started](#getting-started)
+  - [Prerequisites](#prerequisites)
+  - [Installation](#installation)
+- [Usage](#usage)
+  - [Accessing the Attack Simulation](#accessing-the-attack-simulation)
+  - [What You'll See](#what-youll-see)
+  - [Attack Progression](#attack-progression)
+  - [Key Features](#key-features)
+- [Research Context](#research-context)
+  - [Key Vulnerabilities Demonstrated](#key-vulnerabilities-demonstrated)
+  - [Attack Vectors](#attack-vectors)
+- [Security Constraints](#security-constraints)
+- [Future Enhancements](#future-enhancements)
+- [Citations](#citations)
+- [License](#license)
+- [Disclaimer](#disclaimer)
+
 ## Project Team
 - Jacqueline Flynn
 - Charlotte Liu
