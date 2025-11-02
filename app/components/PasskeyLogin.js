@@ -1,12 +1,76 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Fingerprint, Shield, CheckCircle2, Loader2 } from 'lucide-react';
+import { Fingerprint, Shield, CheckCircle2, Loader2, Smartphone, Monitor, Server, Users } from 'lucide-react';
 
-export default function PasskeyLogin({ onLoginSuccess }) {
+// Tier configuration
+const tierConfig = {
+  2: {
+    name: 'Driver Mobile App',
+    title: 'PNW Logistics Driver',
+    description: 'Sign in with Passkey',
+    subDescription: 'Use your device\'s biometric authentication or security key to sign in securely.',
+    icon: Smartphone,
+    color: 'blue',
+    userPrefix: 'driver',
+    platform: 'in-app',
+    redirectPath: '/tier-2/dashboard'
+  },
+  3: {
+    name: 'Dispatcher Dashboard',
+    title: 'PNW Logistics Dispatch',
+    description: 'WebAuthn Passkey Authentication',
+    subDescription: 'Use WebAuthn to sign in with your passkey to access the dispatcher dashboard.',
+    icon: Monitor,
+    color: 'purple',
+    userPrefix: 'dispatcher',
+    platform: 'webauthn',
+    redirectPath: '/tier-3/dashboard'
+  },
+  4: {
+    name: 'Admin Backend',
+    title: 'PNW Logistics Admin',
+    description: 'Single Sign-On (SSO) Passkey',
+    subDescription: 'Sign in with SSO passkey to access administrative controls and other applications.',
+    icon: Server,
+    color: 'red',
+    userPrefix: 'admin',
+    platform: 'sso',
+    redirectPath: '/tier-4/dashboard'
+  }
+};
+
+export default function PasskeyLogin({ onLoginSuccess, tier = 2 }) {
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [authStage, setAuthStage] = useState('ready'); // ready, checking, verifying, success
   const [error, setError] = useState(null);
+  
+  const config = tierConfig[tier] || tierConfig[2];
+  const IconComponent = config.icon;
+  const colorClasses = {
+    blue: {
+      bg: 'bg-blue-500/20',
+      icon: 'text-blue-400',
+      button: 'bg-blue-600 hover:bg-blue-700',
+      border: 'border-blue-500/30',
+      text: 'text-blue-400'
+    },
+    purple: {
+      bg: 'bg-purple-500/20',
+      icon: 'text-purple-400',
+      button: 'bg-purple-600 hover:bg-purple-700',
+      border: 'border-purple-500/30',
+      text: 'text-purple-400'
+    },
+    red: {
+      bg: 'bg-red-500/20',
+      icon: 'text-red-400',
+      button: 'bg-red-600 hover:bg-red-700',
+      border: 'border-red-500/30',
+      text: 'text-red-400'
+    }
+  };
+  const colors = colorClasses[config.color];
 
   const handlePasskeyLogin = async () => {
     setIsAuthenticating(true);
@@ -30,9 +94,12 @@ export default function PasskeyLogin({ onLoginSuccess }) {
       // Call success callback after animation
       if (onLoginSuccess) {
         onLoginSuccess({
+          tier,
           method: 'passkey',
+          platform: config.platform,
           timestamp: new Date().toISOString(),
-          user: 'demo@pnwlogistics.com'
+          user: `${config.userPrefix}@pnwlogistics.com`,
+          redirectPath: config.redirectPath
         });
       }
     } else {
@@ -54,13 +121,19 @@ export default function PasskeyLogin({ onLoginSuccess }) {
         <div className="bg-white/10 backdrop-blur-lg rounded-2xl shadow-2xl border border-white/20 p-8">
           {/* Header */}
           <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-500/20 mb-4">
-              <Shield className="w-8 h-8 text-blue-400" />
+            <div className={`inline-flex items-center justify-center w-16 h-16 rounded-full ${colors.bg} mb-4`}>
+              <IconComponent className={`w-8 h-8 ${colors.icon}`} />
             </div>
             <h1 className="text-3xl font-bold text-white mb-2">
-              PNW Logistics Op
+              {config.title}
             </h1>
-            <p className="text-slate-400">Secure Passkey Authentication</p>
+            <p className="text-slate-400">{config.description}</p>
+            {tier === 4 && (
+              <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/20 border border-amber-500/30">
+                <Users className="w-3 h-3 text-amber-400" />
+                <span className="text-xs text-amber-300">SSO Enabled</span>
+              </div>
+            )}
           </div>
 
           {/* Authentication Status */}
@@ -68,18 +141,18 @@ export default function PasskeyLogin({ onLoginSuccess }) {
             <div className="space-y-4">
               <div className="bg-slate-800/50 rounded-lg p-6 border border-slate-700/50">
                 <div className="flex items-center gap-3 mb-4">
-                  <Fingerprint className="w-6 h-6 text-blue-400" />
+                  <Fingerprint className={`w-6 h-6 ${colors.icon}`} />
                   <h2 className="text-xl font-semibold text-white">
-                    Sign in with Passkey
+                    {config.description}
                   </h2>
                 </div>
                 <p className="text-slate-300 text-sm mb-6">
-                  Use your device's biometric authentication or security key to sign in securely.
+                  {config.subDescription}
                 </p>
                 
                 <button
                   onClick={handlePasskeyLogin}
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2"
+                  className={`w-full ${colors.button} text-white font-medium py-3 px-4 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2`}
                 >
                   <Fingerprint className="w-5 h-5" />
                   Continue with Passkey
@@ -99,13 +172,13 @@ export default function PasskeyLogin({ onLoginSuccess }) {
             <div className="space-y-4">
               <div className="bg-slate-800/50 rounded-lg p-6 border border-slate-700/50">
                 <div className="flex items-center gap-3 mb-4">
-                  <Loader2 className="w-6 h-6 text-blue-400 animate-spin" />
+                  <Loader2 className={`w-6 h-6 ${colors.icon} animate-spin`} />
                   <h2 className="text-xl font-semibold text-white">
                     Checking for Passkey...
                   </h2>
                 </div>
                 <p className="text-slate-300 text-sm">
-                  Looking for registered passkeys on your device...
+                  {tier === 4 ? 'Checking for SSO passkey credentials...' : 'Looking for registered passkeys on your device...'}
                 </p>
               </div>
               <button
@@ -121,16 +194,18 @@ export default function PasskeyLogin({ onLoginSuccess }) {
             <div className="space-y-4">
               <div className="bg-slate-800/50 rounded-lg p-6 border border-slate-700/50">
                 <div className="flex items-center gap-3 mb-4">
-                  <Loader2 className="w-6 h-6 text-blue-400 animate-spin" />
+                  <Loader2 className={`w-6 h-6 ${colors.icon} animate-spin`} />
                   <h2 className="text-xl font-semibold text-white">
                     Verifying Passkey...
                   </h2>
                 </div>
                 <p className="text-slate-300 text-sm mb-4">
-                  Please use your fingerprint, face recognition, or security key to authenticate.
+                  {tier === 4 
+                    ? 'Please use your SSO passkey from your password manager to authenticate.'
+                    : 'Please use your fingerprint, face recognition, or security key to authenticate.'}
                 </p>
                 <div className="flex justify-center">
-                  <div className="w-16 h-16 rounded-full border-4 border-blue-500/30 border-t-blue-500 animate-spin"></div>
+                  <div className={`w-16 h-16 rounded-full border-4 ${colors.border} ${config.color === 'blue' ? 'border-t-blue-500' : config.color === 'purple' ? 'border-t-purple-500' : 'border-t-red-500'} animate-spin`}></div>
                 </div>
               </div>
               <button
@@ -164,7 +239,12 @@ export default function PasskeyLogin({ onLoginSuccess }) {
               <Shield className="w-4 h-4 mt-0.5 flex-shrink-0" />
               <div>
                 <p className="font-medium text-slate-300 mb-1">Secure Authentication</p>
-                <p>This demo uses mock passkey authentication. In production, this would use WebAuthn API for true passkey verification.</p>
+                <p>
+                  {tier === 2 && 'Tier 2: Driver Mobile App - In-app passkey authentication'}
+                  {tier === 3 && 'Tier 3: Dispatcher Dashboard - WebAuthn passkey authentication'}
+                  {tier === 4 && 'Tier 4: Admin Backend - SSO passkey via password manager'}
+                </p>
+                <p className="mt-1">This demo uses mock passkey authentication. In production, this would use WebAuthn API for true passkey verification.</p>
               </div>
             </div>
           </div>
