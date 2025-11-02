@@ -1,7 +1,7 @@
 'use client';
 
-import AttackDemo2WithMap from './components/AttackDemo2WithMap';
+import LoginPage from './login/page';
 
 export default function Home() {
-  return <AttackDemo2WithMap />;
+  return <LoginPage />;
 }
