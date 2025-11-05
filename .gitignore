@@ -1,6 +1,9 @@
 # Environment variables
 .env
 
+node_modules/
+out/
+
 # Python
 __pycache__/
 *.py[cod]
