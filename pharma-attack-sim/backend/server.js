@@ -177,6 +177,18 @@ io.use((socket, next) => {
     if (!token) {
       return next(new Error('unauthorized'));
     }
+    
+    // Check if it's a demo token (for showcase/demo purposes)
+    if (token.startsWith('demo-token-')) {
+      socket.user = {
+        id: 'demo-user',
+        username: 'demo-user',
+        displayName: 'Demo Analyst',
+      };
+      return next();
+    }
+    
+    // Regular passkey authentication
     const user = getSessionUser(db, token);
     if (!user) {
       return next(new Error('unauthorized'));
@@ -312,6 +324,19 @@ function authenticate(req, res, next) {
     if (!token) {
       return res.status(401).json({ error: 'Authentication required' });
     }
+    
+    // Check if it's a demo token (for showcase/demo purposes)
+    if (token.startsWith('demo-token-')) {
+      req.sessionToken = token;
+      req.user = {
+        id: 'demo-user',
+        username: 'demo-user',
+        displayName: 'Demo Analyst',
+      };
+      return next();
+    }
+    
+    // Regular passkey authentication
     const user = getSessionUser(db, token);
     if (!user) {
       return res.status(401).json({ error: 'Invalid or expired session' });
@@ -399,6 +424,23 @@ app.get('/api/attacks/:id', authenticate, (req, res) => {
     config: JSON.parse(attack.config),
     logs
   });
+});
+
+app.post('/api/attacks/:id/stop', authenticate, (req, res) => {
+  const attackId = parseInt(req.params.id);
+  
+  // Update attack status to stopped
+  const stmt = db.prepare('UPDATE attacks SET status = ? WHERE id = ?');
+  stmt.run('stopped', attackId);
+  
+  // Log the stop event
+  log(attackId, 'System', '🛑 Attack stopped by user', io, db);
+  
+  // Emit stop event to all clients
+  io.emit('attack:stopped', { attackId });
+  
+  console.log(`Attack ${attackId} stopped by user`);
+  res.json({ success: true, message: 'Attack stopped' });
 });
 
 // Tier authentication endpoints
