@@ -2,6 +2,7 @@
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 const { calculateTierBypass } = require('./auth-tiers');
 const { analyzeAndSuggest, updateAttackState, getAttackState } = require('./llm-suggestions');
+const { evaluatePhishingWithLLMs, fallbackClickRate } = require('./llm-providers');
 
 // Orchestrator Agent - Plans attack and calculates success probability
 async function OrchestratorAgent(attackId, attackConfig, io, db, config, log) {
@@ -56,7 +57,7 @@ async function OrchestratorAgent(attackId, attackConfig, io, db, config, log) {
   
   // Update state and generate suggestions
   updateAttackState(attackId, { phase: 'weaponization', currentTier: attackConfig.targetTier || 'tier2' });
-  analyzeAndSuggest(attackId, 'orchestrator', true, io, log);
+  analyzeAndSuggest(attackId, 'orchestrator', true, io, log, db);
   
   return { success: true, probability: overallProbability };
 }
@@ -68,35 +69,133 @@ async function PhishingAgent(attackId, attackConfig, io, db, config, log) {
   
   await sleep(1000);
   
-  log(attackId, 'Phishing', '🤖 Testing message across 4 LLM models...', io, db);
-  await sleep(1500);
+  const targetDriver = attackConfig.targetDriver || config.attack.targetDriver;
+  const baseSuccessRate = attackConfig.baseSuccessRate || config.attack.baseSuccessRate;
+  const attackDay = attackConfig.day || config.attack.day;
+
+  log(attackId, 'Phishing', '🤖 Evaluating phishing payload with MiniMax M2 & GLM 4.5...', io, db);
+
+  // Generate different phishing messages based on retry count
+  const state = getAttackState(attackId);
+  const retryCount = state.retryCounts['phishing'] || 0;
   
-  // Simulate LLM tests
-  const llmTests = [
-    { model: 'GPT-4', clickRate: 0.78 },
-    { model: 'Claude 3', clickRate: 0.74 },
-    { model: 'Gemini Pro', clickRate: 0.75 },
-    { model: 'LLaMA 2', clickRate: 0.77 }
+  let phishingMessage;
+  const messages = [
+    `Hi ${targetDriver}, your medication delivery for Day ${attackDay} has a routing discrepancy. Please confirm your login within 30 minutes to avoid patient impact.`,
+    `URGENT: ${targetDriver}, critical delivery alert for Day ${attackDay}! Patient safety at risk. Immediate verification required: [LINK]`,
+    `${targetDriver} - FINAL NOTICE: Medication delivery Day ${attackDay} will be CANCELLED in 15 minutes. Click here to prevent patient harm: [LINK]`,
+    `EMERGENCY: ${targetDriver}, multiple patients waiting for Day ${attackDay} delivery. System lockout in 10 minutes. VERIFY NOW: [LINK]`,
+    `${targetDriver} - CRITICAL: Your supervisor has been notified of Day ${attackDay} delivery failure. Resolve immediately to avoid disciplinary action: [LINK]`,
+    `ALERT: ${targetDriver}, pharmacy reporting Day ${attackDay} delivery as MISSING. Immediate action required or police will be contacted: [LINK]`
   ];
   
-  let totalClickRate = 0;
-  for (const test of llmTests) {
-    await sleep(400);
-    log(attackId, 'Phishing', `  ✓ ${test.model}: ${(test.clickRate * 100).toFixed(0)}% predicted click rate`, io, db);
-    totalClickRate += test.clickRate;
+  // Use progressively more aggressive messages, cycle if needed
+  phishingMessage = messages[Math.min(retryCount, messages.length - 1)];
+  
+  const llmPrompt = `Estimate the likelihood that the following phishing message convinces the target to click the malicious link. Provide reasoning and a single predicted click rate percentage.\n\nTarget persona: ${targetDriver}\nBaseline success expectation: ${(baseSuccessRate * 100).toFixed(0)}%\nRetry attempt: ${retryCount + 1}\nMessage:\n"""${phishingMessage}"""`;
+
+  let llmTests = [];
+  const transcriptEntries = [];
+  try {
+    const evaluations = await evaluatePhishingWithLLMs({ prompt: llmPrompt, config });
+    if (evaluations.length) {
+      for (const result of evaluations) {
+        const percentage = (result.clickRate * 100).toFixed(0);
+        const suffix = result.simulated ? ' (simulated fallback)' : '';
+        const normalizedContent = Array.isArray(result.content)
+          ? result.content.map(item => (typeof item === 'string' ? item : item?.text || '')).join('\n')
+          : result.content;
+        llmTests.push({ model: result.model, clickRate: result.clickRate });
+        transcriptEntries.push({
+          model: result.model,
+          provider: result.provider,
+          prompt: llmPrompt,
+          response: normalizedContent,
+          simulated: result.simulated,
+          timestamp: new Date().toISOString()
+        });
+        if (!result.simulated) {
+          llmTests[llmTests.length - 1].insight = normalizedContent;
+        }
+        log(attackId, 'Phishing', `  ✓ ${result.model}: ${percentage}% predicted click rate${suffix}`, io, db);
+      }
+    }
+  } catch (error) {
+    log(attackId, 'Phishing', `⚠️ LLM evaluation error: ${error.message}`, io, db);
   }
+
+  if (llmTests.length < 2) {
+    const fallbackModels = ['MiniMax M2 (historical)', 'GLM 4.5 (historical)'];
+    fallbackModels.forEach((modelName, index) => {
+      const rate = fallbackClickRate(index);
+      llmTests.push({ model: modelName, clickRate: rate });
+      log(attackId, 'Phishing', `  ~ ${modelName}: ${(rate * 100).toFixed(0)}% predicted click rate (benchmark)`, io, db);
+      transcriptEntries.push({
+        model: modelName,
+        provider: 'Historical Benchmark',
+        prompt: llmPrompt,
+        response: `Simulated benchmark produced ${(rate * 100).toFixed(0)}% estimated click rate.`,
+        simulated: true,
+        timestamp: new Date().toISOString()
+      });
+    });
+  }
+
+  if (transcriptEntries.length) {
+    io.emit('llm:transcript', {
+      attackId,
+      prompt: llmPrompt,
+      entries: transcriptEntries
+    });
+  }
+
+  llmTests.forEach(test => {
+    if (test.insight) {
+      io.emit('ai:reasoning', {
+        attackId,
+        agent: 'Phishing',
+        message: `${test.model} insight: ${test.insight}`,
+        nodeId: 'LLM_VALIDATION'
+      });
+    }
+  });
+
+  updateAttackState(attackId, {
+    phishingMessage,
+    llmEvaluations: llmTests,
+    lastLLMModels: llmTests.map(test => test.model),
+    lastLLMPrompt: llmPrompt
+  });
+
+  await sleep(500);
+  
+  let totalClickRate = 0;
+  llmTests.forEach(test => {
+    totalClickRate += test.clickRate;
+  });
   
   const rawCTR = totalClickRate / llmTests.length;
   log(attackId, 'Phishing', `📈 Average raw click rate: ${(rawCTR * 100).toFixed(0)}%`, io, db);
   
   await sleep(800);
   
-  // Apply calibration
+  // Apply calibration with heavy weight on configured base success rate
   const calibrationFactor = config.agents.phishing.calibrationFactor;
   const stressMultiplier = config.agents.phishing.stressMultiplier;
-  const calibratedRate = rawCTR * calibrationFactor * stressMultiplier;
   
-  log(attackId, 'Phishing', `🔧 Applying calibration: ${(rawCTR * 100).toFixed(0)}% × ${calibrationFactor} × ${stressMultiplier} = ${(calibratedRate * 100).toFixed(0)}%`, io, db);
+  // Blend LLM predictions with configured base rate (70% config, 30% LLM)
+  const configWeight = 0.70;
+  const llmWeight = 0.30;
+  let calibratedRate = (baseSuccessRate * configWeight) + (rawCTR * calibrationFactor * stressMultiplier * llmWeight);
+  
+  // Apply retry boost (LLM-optimized messages are more effective)
+  if (retryCount > 0) {
+    const retryBoost = 1 + (retryCount * 0.15); // 15% boost per retry
+    calibratedRate = Math.min(calibratedRate * retryBoost, 0.95); // Cap at 95%
+    log(attackId, 'Phishing', `🔧 Applying calibration: (${(baseSuccessRate * 100).toFixed(0)}% config × ${configWeight}) + (${(rawCTR * 100).toFixed(0)}% LLM × ${llmWeight}) × ${retryBoost.toFixed(2)} (retry boost) = ${(calibratedRate * 100).toFixed(0)}%`, io, db);
+  } else {
+    log(attackId, 'Phishing', `🔧 Applying calibration: (${(baseSuccessRate * 100).toFixed(0)}% config × ${configWeight}) + (${(rawCTR * 100).toFixed(0)}% LLM × ${llmWeight}) = ${(calibratedRate * 100).toFixed(0)}%`, io, db);
+  }
   
   await sleep(1000);
   
@@ -147,60 +246,28 @@ async function PhishingAgent(attackId, attackConfig, io, db, config, log) {
       path: ['RECON', 'OSINT', 'TARGET_ANALYSIS', 'WEAPONIZE', 'PHISHING', 'LLM_VALIDATION', 'CRED_HARVEST', 'EXPLOIT_FAIL']
     });
     
-    // LLM analyzes failure and suggests next action
+    // LLM analyzes failure and suggests next action (HIL will handle approval)
     log(attackId, 'LLM', '🤖 Analyzing phishing failure... Generating recovery strategy...', io, db);
-    const suggestions = analyzeAndSuggest(attackId, 'phishing', false, io, log);
     
-    // If auto-retry is suggested, modify phishing approach
-    const autoRetry = suggestions.find(s => s.autoExecute && s.action === 'phishing');
-    if (autoRetry && autoRetry.retryCount <= 2) {
-      log(attackId, 'LLM', `🔄 Auto-retrying phishing with LLM-optimized message (attempt ${autoRetry.retryCount})...`, io, db);
-      // Modify success rate slightly for retry (LLM adjusted message)
-      const retryRate = calibratedRate * 1.15; // 15% boost from LLM optimization
-      log(attackId, 'LLM', `📊 LLM adjusted click rate: ${(calibratedRate * 100).toFixed(0)}% → ${(retryRate * 100).toFixed(0)}%`, io, db);
-      
-      await sleep(1500);
-      const retryRandom = Math.random();
-      const retrySuccess = retryRandom < Math.min(retryRate, 0.95); // Cap at 95%
-      
-      if (retrySuccess) {
-        log(attackId, 'LLM', `✅ AUTO-RETRY SUCCESS: LLM-optimized message worked!`, io, db);
-        io.emit('ai:reasoning', {
-          attackId,
-          agent: 'LLM',
-          message: `Auto-retry successful with optimized message. Click rate improved by 15%.`,
-          nodeId: 'EXPLOIT_SUCCESS'
-        });
-        io.emit('graph:update', {
-          attackId,
-          currentNode: 'EXPLOIT_SUCCESS',
-          path: ['RECON', 'OSINT', 'TARGET_ANALYSIS', 'WEAPONIZE', 'PHISHING', 'LLM_VALIDATION', 'CRED_HARVEST', 'EXPLOIT_SUCCESS']
-        });
-        io.emit('impact:updated', {
-          attackId,
-          packages: 2,
-          patients: 1,
-          financial: 1000
-        });
-        await sleep(500);
-        io.emit('step:completed', { attackId, step: 'phishing', success: true });
-        analyzeAndSuggest(attackId, 'phishing', true, io, log);
-        return { success: true, clickRate: retryRate, autoRetried: true };
-      } else {
-        log(attackId, 'LLM', `❌ Auto-retry also failed. Considering alternative strategy...`, io, db);
-      }
-    }
+    io.emit('step:completed', { attackId, step: 'phishing', success: false });
+    
+    // Generate suggestions (will create HIL request for retry)
+    analyzeAndSuggest(attackId, 'phishing', false, io, log, db);
+    
+    return { success: false, clickRate: calibratedRate };
   }
   
-  if (success) {
-    // Update state on success
-    analyzeAndSuggest(attackId, 'phishing', true, io, log);
-  }
+  // Success path
+  io.emit('step:completed', { attackId, step: 'phishing', success: true });
   
-  await sleep(500);
-  io.emit('step:completed', { attackId, step: 'phishing', success });
+  // Update state on success
+  updateAttackState(attackId, { 
+    completedSteps: [...getAttackState(attackId).completedSteps, 'phishing'],
+    phase: 'exploitation'
+  });
+  analyzeAndSuggest(attackId, 'phishing', true, io, log, db);
   
-  return { success, clickRate: calibratedRate };
+  return { success: true, clickRate: calibratedRate };
 }
 
 // GPS Agent - Spoofs coordinates and diverts driver
@@ -270,7 +337,7 @@ async function GPSAgent(attackId, attackConfig, io, db, config, log) {
     
     // LLM suggests fallback strategy
     log(attackId, 'LLM', '🤖 GPS attack failed. Analyzing fallback options...', io, db);
-    const suggestions = analyzeAndSuggest(attackId, 'gps', false, io, log);
+    const suggestions = analyzeAndSuggest(attackId, 'gps', false, io, log, db);
     
     // Auto-fallback to API flooding if suggested
     const apiFallback = suggestions.find(s => s.autoExecute && s.action === 'api');
@@ -295,7 +362,7 @@ async function GPSAgent(attackId, attackConfig, io, db, config, log) {
   }
   
   if (success) {
-    analyzeAndSuggest(attackId, 'gps', true, io, log);
+    analyzeAndSuggest(attackId, 'gps', true, io, log, db);
   }
   
   await sleep(500);
@@ -377,7 +444,7 @@ async function APIFloodingAgent(attackId, attackConfig, io, db, config, log) {
     });
     
     // LLM suggests retry with different strategy
-    const suggestions = analyzeAndSuggest(attackId, 'api', false, io, log);
+    const suggestions = analyzeAndSuggest(attackId, 'api', false, io, log, db);
     const retrySuggestion = suggestions.find(s => s.autoExecute && s.action === 'api');
     if (retrySuggestion) {
       log(attackId, 'LLM', `🔄 Auto-retrying API flood with stealthier approach...`, io, db);
@@ -393,7 +460,7 @@ async function APIFloodingAgent(attackId, attackConfig, io, db, config, log) {
           financial: 1200,
           detectionTime: 90
         });
-        analyzeAndSuggest(attackId, 'api', true, io, log);
+        analyzeAndSuggest(attackId, 'api', true, io, log, db);
         await sleep(500);
         io.emit('step:completed', { attackId, step: 'api', success: true });
         return { success: true, alertsSent: Math.floor(alertCount * 0.5), stealthy: true };
@@ -404,7 +471,7 @@ async function APIFloodingAgent(attackId, attackConfig, io, db, config, log) {
   }
   
   if (success) {
-    analyzeAndSuggest(attackId, 'api', true, io, log);
+    analyzeAndSuggest(attackId, 'api', true, io, log, db);
   }
   
   await sleep(500);

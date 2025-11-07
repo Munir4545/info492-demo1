@@ -18,6 +18,26 @@
       "alertCount": 50,
       "buryPosition": 25
     }
+  },
+  "auth": {
+    "rpName": "Pharma Attack Simulator",
+    "rpID": "localhost",
+    "expectedOrigin": "http://localhost:8000",
+    "sessionTTLHours": 24
+  },
+  "llmProviders": {
+    "minimax": {
+      "model": "minimax/minimax-m2:free",
+      "baseURL": "https://openrouter.ai/api/v1/chat/completions",
+      "apiKeyEnv": "OPENROUTER_API_KEY",
+      "timeoutMs": 20000
+    },
+    "glm": {
+      "model": "z-ai/glm-4.5-air:free",
+      "baseURL": "https://openrouter.ai/api/v1/chat/completions",
+      "apiKeyEnv": "OPENROUTER_API_KEY",
+      "timeoutMs": 20000
+    }
   }
 }
 

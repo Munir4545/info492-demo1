@@ -11,6 +11,10 @@ pharma-attack-sim/
 │   ├── server.js        # Express server with Socket.IO
 │   ├── agents.js        # AI agents (Orchestrator, Phishing, GPS, API)
 │   ├── auth-tiers.js    # Tier-based authentication system
+│   ├── passkey-auth.js  # WebAuthn registration/authentication helpers
+│   ├── session-manager.js # Secure session persistence
+│   ├── human-oversight.js # Human-in-the-loop approval queue
+│   ├── llm-providers.js # MiniMax/GLM integration & fallbacks
 │   ├── package.json     # Backend dependencies
 │   └── attacks.db       # SQLite database (auto-created)
 └── frontend/
@@ -35,6 +39,14 @@ npm start
 
 The server will start on `http://localhost:3001`
 
+> Before running `npm start`, add a `.env` file in the project root (same level as `config.json`) with your OpenRouter key:
+>
+> ```env
+> OPENROUTER_API_KEY=sk-or-xxxxxxxxxxxxxxxxxxxxxxxxxxxx
+> OPENROUTER_SITE_URL=http://localhost:8000   # optional, used for OpenRouter referer header
+> OPENROUTER_APP_NAME=Pharma Attack Simulator # optional, shown in OpenRouter dashboard
+> ```
+
 ### 3. Start Frontend
 
 Open a new terminal:
@@ -49,14 +61,15 @@ Then open your browser to:
 - **Basic Dashboard**: `http://localhost:8000/index.html`
 - **Master Dashboard** (Enhanced): `http://localhost:8000/master-dashboard.html`
 
+> Passkeys only work when the UI is served from `http://localhost` or `https://` origins (opening the HTML file directly from disk will not work).
+
 ## 🎯 Usage
 
-1. **Login Screen**: Enter target driver, success rate, and attack day
-2. **Click "INITIALIZE ATTACK SEQUENCE"**
-3. **Watch Dashboard**: 
-   - Agent cards light up as attack progresses
-   - Live console shows real-time logs
-   - Export results when complete
+1. **Register or Sign In with a Passkey**: Use WebAuthn (supported on localhost in modern browsers).
+2. **Configure Attack Parameters**: Set target driver, success rate, and attack day once authenticated.
+3. **Launch the Attack Sequence** and monitor real-time progress.
+4. **Review Human-in-the-Loop Queue**: Approve or reject high-impact auto-actions before they execute.
+5. **Export Results** once the run completes.
 
 ## 🔧 Configuration
 
@@ -64,10 +77,29 @@ Edit `config.json` to customize:
 
 - **Attack settings**: Target driver, success rate, timing
 - **Agent parameters**: Calibration factors, GPS coordinates, API alert counts
+- **Auth** (`auth` block): RP name/ID, expected origin, session TTL for passkey flows
+- **LLM Providers** (`llmProviders` block): Model IDs, API endpoints, timeout values for MiniMax M2 and GLM 4.5 integrations
+
+## 🔑 Passkeys & Sessions
+
+- Runs entirely over WebAuthn passkeys (works on `http://localhost` or HTTPS origins).
+- Successful registration/login returns a session token stored in local storage and automatically attached to API calls.
+- Use the logout button or clear local storage to end the session.
+- Update `config.auth.expectedOrigin` if you host the frontend on a different port or domain.
+
+## 🤖 LLM Provider Setup
+
+- Uses **OpenRouter** for model access; supply an `OPENROUTER_API_KEY` in `.env` as shown above.
+- Optional: set `OPENROUTER_SITE_URL` and `OPENROUTER_APP_NAME` to brand the traffic in your OpenRouter dashboard.
+- Without a key, the system falls back to calibrated simulations and clearly labels them as such in the console.
+- Adjust model IDs or override defaults in `config.json` if you select different OpenRouter routes.
 
 ## 📊 Features
 
 ### Core Features
+- **Passkey Authentication**: WebAuthn passkeys with session tokens protect all APIs
+- **Human-in-the-Loop Safety**: Approval queue gates high-impact auto-actions before execution
+- **Real LLM Evaluations**: MiniMax M2 & GLM 4.5 score phishing payloads (with graceful fallbacks)
 - **4 AI Agents**: Orchestrator, Phishing, GPS, API Flood
 - **Real-time Updates**: Socket.IO for live dashboard updates
 - **Database Persistence**: SQLite stores all attacks and logs
@@ -82,13 +114,35 @@ Edit `config.json` to customize:
 - **Multi-Mode Interface**: Attack Mode, Experiment Mode, Analysis Mode
 - **Live Telemetry**: Real-time success rate, detection risk, time elapsed, packet counts
 
+## 🧑‍⚖️ Human-in-the-Loop Safety
+
+- Auto-suggestions from the LLM are queued instead of executed immediately.
+- Analysts receive real-time alerts and can approve or reject each action.
+- Approvals are audited and broadcast to all connected dashboards.
+
 ## 🛠️ API Endpoints
+
+All non-auth routes require an `Authorization: Bearer <sessionToken>` header obtained after a successful passkey sign-in.
+
+### Auth Endpoints
+- `POST /api/auth/register/start`
+- `POST /api/auth/register/finish`
+- `POST /api/auth/login/start`
+- `POST /api/auth/login/finish`
+- `GET /api/auth/session`
+- `POST /api/auth/logout`
 
 ### Attack Endpoints
 - `GET /api/config` - Get configuration
 - `POST /api/attacks/create` - Create new attack
 - `POST /api/attacks/:id/start` - Start attack
 - `GET /api/attacks/:id` - Get attack status and logs
+- `GET /api/attacks/:id/suggestions` - Latest LLM suggestions/state
+
+### Human-in-the-Loop Endpoints
+- `GET /api/hil/pending` - List pending approvals
+- `POST /api/hil/:id/approve` - Approve an action
+- `POST /api/hil/:id/reject` - Reject an action
 
 ### Tier Authentication Endpoints
 - `GET /api/tiers` - Get all authentication tiers
@@ -104,7 +158,7 @@ Edit `config.json` to customize:
 - Calculates overall success probability
 
 ### Phishing Agent
-- Tests messages across 4 LLM models
+- Evaluates payloads with MiniMax M2 & GLM 4.5 (API-backed, with simulated fallback)
 - Applies calibration factors
 - Runs Monte Carlo simulation
 

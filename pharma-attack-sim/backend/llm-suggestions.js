@@ -1,4 +1,5 @@
 // LLM-Powered Attack Suggestions and Auto-Decision System
+const humanOversight = require('./human-oversight');
 
 // Attack state tracking
 const attackStates = {};
@@ -58,31 +59,18 @@ function generateSuggestion(attackId, context) {
   
   if (state.failedSteps.includes('phishing')) {
     const retryCount = state.retryCounts['phishing'] || 0;
-    if (retryCount < 2) {
-      suggestions.push({
-        id: 'suggest-retry-phishing',
-        priority: 'critical',
-        action: 'phishing',
-        title: 'Retry Phishing with Different Strategy',
-        description: 'Previous phishing attempt failed. Retrying with updated message crafted by LLMs.',
-        reason: `Phishing failed ${retryCount + 1} time(s). LLM will adjust message tone and urgency to increase click rate.`,
-        confidence: 0.75,
-        autoExecute: true, // Auto-retry with modifications
-        retryCount: retryCount + 1
-      });
-    } else {
-      suggestions.push({
-        id: 'suggest-switch-tier',
-        priority: 'high',
-        action: 'switch_tier',
-        title: 'Switch Target to Dispatcher Tier',
-        description: 'Phishing failed multiple times on Driver tier. Switching to Dispatcher tier with different attack vector.',
-        reason: 'Driver attacks failed 3+ times. Dispatcher tier may be more vulnerable to different attack methods.',
-        confidence: 0.70,
-        autoExecute: true, // Auto-switch tier
-        newTier: 'tier3'
-      });
-    }
+    // Allow unlimited retries - analyst decides when to stop
+    suggestions.push({
+      id: 'suggest-retry-phishing',
+      priority: 'critical',
+      action: 'phishing',
+      title: 'Retry Phishing with Different Strategy',
+      description: 'Previous phishing attempt failed. Retrying with updated message crafted by LLMs.',
+      reason: `Phishing failed ${retryCount + 1} time(s). LLM will adjust message tone and urgency to increase click rate.`,
+      confidence: 0.75,
+      autoExecute: true, // Requires HIL approval
+      retryCount: retryCount + 1
+    });
   }
   
   if (state.completedSteps.includes('phishing') && !state.completedSteps.includes('gps')) {
@@ -182,7 +170,7 @@ function generateSuggestion(attackId, context) {
 }
 
 // Generate suggestion after any step completion or failure
-function analyzeAndSuggest(attackId, step, success, io, log) {
+function analyzeAndSuggest(attackId, step, success, io, log, db) {
   const state = getAttackState(attackId);
   
   // Update state
@@ -226,13 +214,28 @@ function analyzeAndSuggest(attackId, step, success, io, log) {
   // Auto-execute critical/high priority suggestions if autoExecute is true
   suggestions.forEach(suggestion => {
     if (suggestion.autoExecute && (suggestion.priority === 'critical' || suggestion.priority === 'high')) {
-      setTimeout(() => {
-        log(attackId, 'LLM', `🤖 Auto-executing suggestion: ${suggestion.title}`, io);
-        io.emit('llm:auto-execute', {
-          attackId,
-          suggestion: suggestion
-        });
-      }, 2000); // Wait 2 seconds before auto-executing
+      humanOversight.enqueueAction({
+        attackId,
+        title: suggestion.title,
+        description: suggestion.description,
+        severity: suggestion.priority,
+        metadata: { suggestion, sourceStep: step },
+        requestedBy: 'LLM',
+        onApprove: () => {
+          if (typeof log === 'function') {
+            log(attackId, 'LLM', `🤖 Human approved suggestion: ${suggestion.title}. Executing now.`, io, db);
+          }
+          io.emit('llm:auto-execute', {
+            attackId,
+            suggestion
+          });
+        },
+        onReject: () => {
+          if (typeof log === 'function') {
+            log(attackId, 'LLM', `🧑‍⚖️ Human rejected suggestion: ${suggestion.title}.`, io, db);
+          }
+        }
+      });
     }
   });
   

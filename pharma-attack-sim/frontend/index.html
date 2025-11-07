@@ -14,120 +14,375 @@
         }
         
         body {
-            font-family: 'Courier New', monospace;
-            background: #000;
-            color: #0f0;
-            overflow: hidden;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #f5f7fb;
+            color: #1f2933;
         }
-        
-        #matrix-canvas {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 0;
+
+        .hidden {
+            display: none !important;
         }
         
         .content {
-            position: relative;
-            z-index: 1;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            gap: 3rem;
+            padding: 3rem 1.5rem;
         }
-        
-        .glass-panel {
-            background: rgba(0, 0, 0, 0.8);
-            border: 2px solid #0f0;
-            backdrop-filter: blur(10px);
-            box-shadow: 0 0 20px rgba(0, 255, 0, 0.3);
+
+        #login-screen,
+        #dashboard {
+            width: 100%;
+        }
+
+        #login-screen {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .panel {
+            background: #ffffff;
+            border: 1px solid #e4e7eb;
+            border-radius: 18px;
+            box-shadow: 0 20px 45px rgba(15, 23, 42, 0.12);
+        }
+
+        .panel-headline {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #1f2937;
+        }
+
+        input,
+        select {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border-radius: 12px;
+            border: 1px solid #cbd5e1;
+            background: #ffffff;
+            color: #1f2933;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        input:focus,
+        select:focus {
+            outline: none;
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+        }
+
+        button {
+            border-radius: 12px;
+            font-weight: 600;
+            padding: 0.75rem 1rem;
+            cursor: pointer;
+            transition: transform 0.1s ease, box-shadow 0.2s ease;
+            border: none;
+        }
+
+        button:disabled {
+            opacity: 0.55;
+            cursor: not-allowed;
+            box-shadow: none;
+            transform: none;
+        }
+
+        .primary-btn {
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            color: #ffffff;
+            box-shadow: 0 10px 25px rgba(37, 99, 235, 0.35);
+        }
+
+        .primary-btn:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 16px 32px rgba(37, 99, 235, 0.45);
+        }
+
+        .secondary-btn {
+            background: transparent;
+            border: 1px solid #2563eb;
+            color: #2563eb;
+        }
+
+        .secondary-btn:hover:not(:disabled) {
+            background: #eff6ff;
+        }
+
+        .ghost-btn {
+            background: #e2e8f0;
+            color: #1f2933;
+        }
+
+        .ghost-btn:hover:not(:disabled) {
+            background: #cbd5f5;
+        }
+
+        .danger-btn {
+            background: #ef4444;
+            color: #ffffff;
+        }
+
+        .danger-outline-btn {
+            background: transparent;
+            border: 1px solid #ef4444;
+            color: #ef4444;
+        }
+
+        .danger-outline-btn:hover:not(:disabled) {
+            background: rgba(239, 68, 68, 0.08);
         }
         
         .agent-card {
-            background: rgba(0, 0, 0, 0.9);
-            border: 2px solid #0f0;
-            transition: all 0.3s;
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 16px;
+            padding: 1.5rem;
+            transition: transform 0.2s ease, box-shadow 0.3s ease, border-color 0.2s ease;
+        }
+
+        .agent-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 24px rgba(15, 23, 42, 0.12);
         }
         
         .agent-card.working {
-            box-shadow: 0 0 30px rgba(0, 255, 0, 0.8);
-            border-color: #0ff;
-            animation: pulse 1s infinite;
+            border-color: #f59e0b;
+            box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.25);
         }
         
         .agent-card.completed {
-            border-color: #0f0;
-            box-shadow: 0 0 20px rgba(0, 255, 0, 0.5);
+            border-color: #10b981;
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.25);
         }
         
         .agent-card.failed {
-            border-color: #f00;
-            box-shadow: 0 0 20px rgba(255, 0, 0, 0.5);
+            border-color: #ef4444;
+            box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.25);
         }
-        
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.7; }
+
+        .console-panel {
+            background: #0f172a;
+            border-radius: 18px;
+            padding: 1.5rem;
+            color: #e2e8f0;
+        }
+
+        .console-panel .font-bold {
+            color: #94a3b8;
         }
         
         .console-output {
-            background: rgba(0, 0, 0, 0.9);
-            border: 2px solid #0f0;
-            font-family: 'Courier New', monospace;
-            font-size: 12px;
-            max-height: 400px;
+            font-family: 'Roboto Mono', monospace;
+            max-height: 320px;
             overflow-y: auto;
-            padding: 10px;
+            font-size: 0.85rem;
+            margin-top: 1rem;
         }
         
         .console-line {
-            margin: 2px 0;
-            color: #0f0;
+            margin-bottom: 0.4rem;
+        }
+
+        #human-loop-panel,
+        #llm-shell {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 18px;
+            padding: 1.5rem;
+            box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+        }
+
+        .approval-card {
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 1rem;
+            background: #f8fafc;
+        }
+
+        .approval-card h4 {
+            font-size: 0.95rem;
+            margin-bottom: 0.35rem;
+            color: #1f2933;
+        }
+
+        .approval-card .meta {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #64748b;
+        }
+
+        .llm-shell-entry {
+            border: 1px solid #e2e8f0;
+            border-radius: 14px;
+            padding: 1rem 1.25rem;
+            background: #f8fafc;
+        }
+
+        .llm-shell-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+            color: #1f2937;
+            font-weight: 600;
+        }
+
+        .llm-shell-tag {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #64748b;
+        }
+
+        .llm-shell-block {
+            background: #0b1120;
+            color: #e2e8f0;
+            border-radius: 12px;
+            padding: 1rem;
+            font-family: 'Roboto Mono', monospace;
+            font-size: 0.82rem;
+            overflow-x: auto;
+            margin-bottom: 0.75rem;
+        }
+
+        .llm-shell-block:last-child {
+            margin-bottom: 0;
+        }
+
+        #user-display {
+            color: #475569;
+            font-weight: 600;
+        }
+
+        .status-label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
         }
         
-        input, select, button {
-            background: rgba(0, 0, 0, 0.8);
-            border: 2px solid #0f0;
-            color: #0f0;
-            padding: 10px;
-            font-family: 'Courier New', monospace;
+        .tab-btn {
+            padding: 0.75rem 1.5rem;
+            font-weight: 600;
+            color: #64748b;
+            background: transparent;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
         }
         
-        button:hover {
-            background: rgba(0, 255, 0, 0.2);
-            box-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
+        .tab-btn:hover {
+            color: #2563eb;
+            background: rgba(37, 99, 235, 0.05);
         }
         
-        button:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
+        .tab-btn.active {
+            color: #2563eb;
+            border-bottom-color: #2563eb;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .stat-card {
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 1.5rem;
+        }
+        
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #1e293b;
+        }
+        
+        .stat-label {
+            font-size: 0.875rem;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        .history-item {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 1rem;
+            transition: all 0.2s ease;
+        }
+        
+        .history-item:hover {
+            border-color: #cbd5e1;
+            box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
         }
     </style>
 </head>
 <body>
-    <canvas id="matrix-canvas"></canvas>
-    
     <div class="content">
         <!-- Login Screen -->
-        <div id="login-screen" class="min-h-screen flex items-center justify-center p-4">
-            <div class="glass-panel p-8 rounded-lg max-w-md w-full">
-                <h1 class="text-4xl font-bold text-center mb-8 text-green-400">
-                    ATTACK CONTROL SYSTEM
-                </h1>
-                
-                <form id="attack-form" class="space-y-4">
+        <div id="login-screen" class="flex items-center justify-center">
+            <div class="panel p-10 w-full max-w-lg space-y-6">
+                <div>
+                    <p class="text-sm uppercase tracking-[0.32em] text-slate-500">Secure Access</p>
+                    <h1 class="text-3xl font-bold text-slate-900 mt-2">Pharma Attack Simulator</h1>
+                    <p class="text-sm text-slate-500 mt-2">Authenticate with your passkey to orchestrate simulation exercises.</p>
+                </div>
+                <div class="space-y-6" id="passkey-controls">
                     <div>
-                        <label class="block mb-2">Target Driver:</label>
+                        <label class="block mb-2 text-sm font-medium text-slate-600">Username</label>
+                        <input
+                            type="text"
+                            id="username"
+                            placeholder="analyst01"
+                            autocomplete="username"
+                        />
+                    </div>
+
+                    <div>
+                        <label class="block mb-2 text-sm font-medium text-slate-600">Display Name</label>
+                        <input
+                            type="text"
+                            id="display-name"
+                            placeholder="Security Analyst"
+                            autocomplete="name"
+                        />
+                    </div>
+
+                    <div class="flex flex-col sm:flex-row gap-3">
+                        <button type="button" id="register-passkey-btn" class="primary-btn flex-1">Register Passkey</button>
+                        <button type="button" id="login-passkey-btn" class="secondary-btn flex-1">Sign In with Passkey</button>
+                    </div>
+
+                    <div id="auth-status" class="text-sm min-h-[1.5rem] text-slate-500"></div>
+                </div>
+
+                <div id="attack-config" class="space-y-6 hidden">
+                    <div class="text-xs uppercase tracking-[0.32em] text-slate-500">Attack Configuration</div>
+                    <form id="attack-form" class="space-y-5">
+                        <div>
+                            <label class="block mb-2 text-sm font-medium text-slate-600">Target Driver</label>
                         <input 
                             type="text" 
                             id="target-driver" 
                             value="Jerry Rodriguez"
-                            class="w-full"
                             required
                         />
                     </div>
                     
                     <div>
-                        <label class="block mb-2">Success Rate:</label>
-                        <select id="success-rate" class="w-full" required>
+                            <label class="block mb-2 text-sm font-medium text-slate-600">Success Rate</label>
+                            <select id="success-rate" required>
                             <option value="0.10">10%</option>
                             <option value="0.30" selected>30%</option>
                             <option value="0.50">50%</option>
@@ -136,125 +391,742 @@
                     </div>
                     
                     <div>
-                        <label class="block mb-2">Attack Day:</label>
-                        <select id="attack-day" class="w-full" required>
+                            <label class="block mb-2 text-sm font-medium text-slate-600">Attack Day</label>
+                            <select id="attack-day" required>
                             <option value="1" selected>Day 1</option>
                             <option value="2">Day 2</option>
                             <option value="3">Day 3</option>
                         </select>
                     </div>
                     
-                    <button 
-                        type="submit" 
-                        class="w-full py-3 font-bold text-lg"
-                    >
-                        INITIALIZE ATTACK SEQUENCE
-                    </button>
+                        <button type="submit" class="primary-btn w-full">Initialize Attack Sequence</button>
                 </form>
+                </div>
             </div>
         </div>
         
         <!-- Dashboard -->
-        <div id="dashboard" class="hidden min-h-screen p-4">
-            <div class="max-w-7xl mx-auto">
-                <h1 class="text-3xl font-bold text-center mb-6 text-green-400">
-                    ATTACK DASHBOARD
-                </h1>
+        <div id="dashboard" class="hidden w-full">
+            <div class="max-w-7xl mx-auto space-y-8">
+                <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+                    <div>
+                        <p class="text-sm uppercase tracking-[0.32em] text-slate-500">Operations Console</p>
+                        <h1 class="text-3xl font-bold text-slate-900">Attack Dashboard</h1>
+                    </div>
+                    <div id="user-display" class="text-sm text-slate-500"></div>
+                </div>
                 
+                <!-- Tab Navigation -->
+                <div class="flex gap-2 border-b border-slate-200">
+                    <button id="tab-live" class="tab-btn active">
+                        <span>🎯</span> Live Attack
+                    </button>
+                    <button id="tab-history" class="tab-btn">
+                        <span>📊</span> History & Analytics
+                    </button>
+                </div>
+                
+                <!-- Live Attack Tab -->
+                <div id="content-live" class="tab-content active space-y-8">
                 <!-- Agent Cards -->
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                    <div id="orchestrator-card" class="agent-card p-4 rounded">
+                <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                    <div id="orchestrator-card" class="agent-card">
                         <div class="text-2xl mb-2">🧠</div>
-                        <div class="font-bold mb-1">Orchestrator</div>
-                        <div class="text-sm status">IDLE</div>
+                        <div class="font-semibold text-lg text-slate-800">Orchestrator</div>
+                        <div class="status-label status mt-2 text-slate-500">IDLE</div>
                     </div>
                     
-                    <div id="phishing-card" class="agent-card p-4 rounded">
+                    <div id="phishing-card" class="agent-card">
                         <div class="text-2xl mb-2">🎣</div>
-                        <div class="font-bold mb-1">Phishing</div>
-                        <div class="text-sm status">IDLE</div>
+                        <div class="font-semibold text-lg text-slate-800">Phishing</div>
+                        <div class="status-label status mt-2 text-slate-500">IDLE</div>
                     </div>
                     
-                    <div id="gps-card" class="agent-card p-4 rounded">
+                    <div id="gps-card" class="agent-card">
                         <div class="text-2xl mb-2">📍</div>
-                        <div class="font-bold mb-1">GPS</div>
-                        <div class="text-sm status">IDLE</div>
+                        <div class="font-semibold text-lg text-slate-800">GPS</div>
+                        <div class="status-label status mt-2 text-slate-500">IDLE</div>
                     </div>
                     
-                    <div id="api-card" class="agent-card p-4 rounded">
+                    <div id="api-card" class="agent-card">
                         <div class="text-2xl mb-2">💥</div>
-                        <div class="font-bold mb-1">API Flood</div>
-                        <div class="text-sm status">IDLE</div>
+                        <div class="font-semibold text-lg text-slate-800">API Flood</div>
+                        <div class="status-label status mt-2 text-slate-500">IDLE</div>
                     </div>
                 </div>
                 
-                <!-- Console Output -->
-                <div class="glass-panel p-4 rounded mb-4">
-                    <div class="font-bold mb-2">LIVE CONSOLE</div>
+                <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                    <div class="console-panel">
+                        <div class="font-bold uppercase tracking-[0.32em] text-xs">Live Console</div>
                     <div id="console-output" class="console-output"></div>
+                    </div>
+                    <div id="llm-shell" class="panel">
+                        <div class="flex items-center justify-between mb-3">
+                            <div class="font-semibold text-slate-700">LLM Transcript</div>
+                            <span class="llm-shell-tag">Prompt &amp; Response</span>
+                        </div>
+                        <div id="llm-shell-list" class="space-y-3 text-sm max-h-96 overflow-y-auto pr-1"></div>
+                    </div>
                 </div>
                 
-                <!-- Controls -->
-                <div class="flex gap-4">
-                    <button id="export-btn" class="px-6 py-2" disabled>
-                        EXPORT RESULTS
-                    </button>
-                    <button id="reset-btn" class="px-6 py-2">
-                        RESET
-                    </button>
+                <div id="human-loop-panel" class="panel">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="font-semibold text-slate-700">Human-in-the-Loop Queue</div>
+                        <button id="refresh-hil-btn" class="secondary-btn text-sm px-4 py-2">Refresh</button>
                 </div>
+                    <div id="hil-list" class="space-y-3 text-sm"></div>
+            </div>
+                
+                <div class="flex flex-col md:flex-row md:items-center md:justify-end gap-3">
+                    <button id="export-btn" class="primary-btn md:w-auto w-full" disabled>Export Results</button>
+                    <button id="reset-btn" class="ghost-btn md:w-auto w-full">Reset</button>
+                    <button id="logout-btn" class="secondary-btn md:w-auto w-full">Sign Out</button>
+                </div>
+                </div>
+                <!-- End Live Attack Tab -->
+                
+                <!-- History & Analytics Tab -->
+                <div id="content-history" class="tab-content space-y-8">
+                    <!-- Statistics Overview -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div class="stat-card">
+                            <div class="stat-value" id="stat-total-attacks">0</div>
+                            <div class="stat-label">Total Attacks</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value text-green-600" id="stat-successful">0</div>
+                            <div class="stat-label">Successful</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value text-red-600" id="stat-failed">0</div>
+                            <div class="stat-label">Failed</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="stat-avg-rate">0%</div>
+                            <div class="stat-label">Avg Success Rate</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Current Configuration -->
+                    <div class="panel p-6">
+                        <h3 class="font-bold text-lg text-slate-800 mb-4">Current Configuration</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                            <div>
+                                <div class="text-slate-500 mb-1">Target Driver</div>
+                                <div class="font-semibold text-slate-800" id="config-target">Jerry Rodriguez</div>
+                            </div>
+                            <div>
+                                <div class="text-slate-500 mb-1">Base Success Rate</div>
+                                <div class="font-semibold text-slate-800" id="config-rate">30%</div>
+                            </div>
+                            <div>
+                                <div class="text-slate-500 mb-1">Phishing Calibration</div>
+                                <div class="font-semibold text-slate-800" id="config-calibration">0.40</div>
+                            </div>
+                            <div>
+                                <div class="text-slate-500 mb-1">Stress Multiplier</div>
+                                <div class="font-semibold text-slate-800" id="config-stress">1.15</div>
+                            </div>
+                            <div>
+                                <div class="text-slate-500 mb-1">GPS Coordinates</div>
+                                <div class="font-semibold text-slate-800" id="config-gps">[46.7298, -117.1817]</div>
+                            </div>
+                            <div>
+                                <div class="text-slate-500 mb-1">API Alert Count</div>
+                                <div class="font-semibold text-slate-800" id="config-api">50</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Attack History -->
+                    <div class="panel p-6">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="font-bold text-lg text-slate-800">Attack History</h3>
+                            <button id="refresh-history-btn" class="secondary-btn text-sm px-4 py-2">Refresh</button>
+                        </div>
+                        <div id="history-list" class="space-y-3"></div>
+                    </div>
+                    
+                    <!-- LLM Provider Status -->
+                    <div class="panel p-6">
+                        <h3 class="font-bold text-lg text-slate-800 mb-4">LLM Provider Configuration</h3>
+                        <div class="space-y-4 text-sm">
+                            <div class="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+                                <div>
+                                    <div class="font-semibold text-slate-800">MiniMax M2</div>
+                                    <div class="text-slate-500 text-xs mt-1">minimax/minimax-m2:free</div>
+                                </div>
+                                <div class="text-green-600 font-semibold">Active</div>
+                            </div>
+                            <div class="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+                                <div>
+                                    <div class="font-semibold text-slate-800">GLM 4.5 Air</div>
+                                    <div class="text-slate-500 text-xs mt-1">z-ai/glm-4.5-air:free</div>
+                                </div>
+                                <div class="text-green-600 font-semibold">Active</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Session Info -->
+                    <div class="panel p-6">
+                        <h3 class="font-bold text-lg text-slate-800 mb-4">Session Information</h3>
+                        <div class="space-y-3 text-sm">
+                            <div class="flex justify-between">
+                                <span class="text-slate-500">Logged in as</span>
+                                <span class="font-semibold text-slate-800" id="session-user">-</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-slate-500">Session TTL</span>
+                                <span class="font-semibold text-slate-800">24 hours</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-slate-500">Authentication Method</span>
+                                <span class="font-semibold text-slate-800">WebAuthn Passkey</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- End History Tab -->
             </div>
         </div>
     </div>
     
     <script>
-        // Matrix Rain Animation
-        const canvas = document.getElementById('matrix-canvas');
-        const ctx = canvas.getContext('2d');
-        
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-        
-        const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-        const fontSize = 14;
-        const columns = canvas.width / fontSize;
-        const drops = [];
-        
-        for (let i = 0; i < columns; i++) {
-            drops[i] = Math.random() * -100;
-        }
-        
-        function drawMatrix() {
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            
-            ctx.fillStyle = '#0f0';
-            ctx.font = fontSize + 'px monospace';
-            
-            for (let i = 0; i < drops.length; i++) {
-                const text = chars[Math.floor(Math.random() * chars.length)];
-                const x = i * fontSize;
-                const y = drops[i] * fontSize;
+        const API_BASE = 'http://localhost:3001';
+        const STORAGE_KEY = 'pharmaAttackSession';
+        let sessionToken = null;
+        let currentUser = null;
+        let socket = null;
+        let currentAttackId = null;
+        const pendingActions = new Map();
+        const llmEntries = [];
+
+        const elements = {
+            loginScreen: document.getElementById('login-screen'),
+            dashboard: document.getElementById('dashboard'),
+            attackForm: document.getElementById('attack-form'),
+            attackConfig: document.getElementById('attack-config'),
+            passkeyControls: document.getElementById('passkey-controls'),
+            authStatus: document.getElementById('auth-status'),
+            targetDriver: document.getElementById('target-driver'),
+            successRate: document.getElementById('success-rate'),
+            attackDay: document.getElementById('attack-day'),
+            consoleOutput: document.getElementById('console-output'),
+            exportBtn: document.getElementById('export-btn'),
+            resetBtn: document.getElementById('reset-btn'),
+            logoutBtn: document.getElementById('logout-btn'),
+            refreshHilBtn: document.getElementById('refresh-hil-btn'),
+            hilList: document.getElementById('hil-list'),
+            userDisplay: document.getElementById('user-display'),
+            registerBtn: document.getElementById('register-passkey-btn'),
+            loginBtn: document.getElementById('login-passkey-btn'),
+            usernameInput: document.getElementById('username'),
+            displayNameInput: document.getElementById('display-name'),
+            llmShellList: document.getElementById('llm-shell-list')
+        };
+
+        const cardMap = {
+            orchestrator: 'orchestrator-card',
+            phishing: 'phishing-card',
+            gps: 'gps-card',
+            api: 'api-card'
+        };
+
+        // Tab switching (Dashboard)
+        document.getElementById('tab-live').addEventListener('click', () => {
+            document.getElementById('tab-live').classList.add('active');
+            document.getElementById('tab-history').classList.remove('active');
+            document.getElementById('content-live').classList.add('active');
+            document.getElementById('content-history').classList.remove('active');
+        });
+
+        document.getElementById('tab-history').addEventListener('click', () => {
+            document.getElementById('tab-history').classList.add('active');
+            document.getElementById('tab-live').classList.remove('active');
+            document.getElementById('content-history').classList.add('active');
+            document.getElementById('content-live').classList.remove('active');
+            loadHistoryData();
+        });
+
+        // Load history data
+        async function loadHistoryData() {
+            try {
+                const response = await apiRequest('/api/attacks');
+                const attacks = response || [];
                 
-                ctx.fillText(text, x, y);
+                // Update statistics
+                const totalAttacks = attacks.length;
+                const successful = attacks.filter(a => a.success === 1).length;
+                const failed = totalAttacks - successful;
+                const avgRate = totalAttacks > 0 ? ((successful / totalAttacks) * 100).toFixed(0) : 0;
                 
-                if (y > canvas.height && Math.random() > 0.975) {
-                    drops[i] = 0;
+                document.getElementById('stat-total-attacks').textContent = totalAttacks;
+                document.getElementById('stat-successful').textContent = successful;
+                document.getElementById('stat-failed').textContent = failed;
+                document.getElementById('stat-avg-rate').textContent = `${avgRate}%`;
+                
+                // Update session user
+                if (currentUser) {
+                    document.getElementById('session-user').textContent = currentUser.displayName || currentUser.username;
                 }
-                drops[i]++;
+                
+                // Render attack history
+                const historyList = document.getElementById('history-list');
+                if (attacks.length === 0) {
+                    historyList.innerHTML = '<div class="text-slate-500 text-center py-8">No attack history yet</div>';
+                } else {
+                    historyList.innerHTML = attacks.slice(-10).reverse().map(attack => {
+                        const config = JSON.parse(attack.config || '{}');
+                        const statusColor = attack.success === 1 ? 'text-green-600' : 'text-red-600';
+                        const statusText = attack.success === 1 ? '✅ Success' : '❌ Failed';
+                        const date = new Date(attack.started_at).toLocaleString();
+                        
+                        return `
+                            <div class="history-item">
+                                <div class="flex items-start justify-between mb-2">
+                                    <div>
+                                        <div class="font-semibold text-slate-800">Attack #${attack.id}</div>
+                                        <div class="text-xs text-slate-500 mt-1">${date}</div>
+                                    </div>
+                                    <div class="font-semibold ${statusColor}">${statusText}</div>
+                                </div>
+                                <div class="grid grid-cols-2 gap-2 text-xs text-slate-600 mt-3">
+                                    <div><span class="text-slate-500">Target:</span> ${config.targetDriver || 'N/A'}</div>
+                                    <div><span class="text-slate-500">Success Rate:</span> ${((config.baseSuccessRate || 0) * 100).toFixed(0)}%</div>
+                                    <div><span class="text-slate-500">Day:</span> ${config.day || 'N/A'}</div>
+                                    <div><span class="text-slate-500">Status:</span> ${attack.status || 'N/A'}</div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                }
+            } catch (error) {
+                console.error('Failed to load history:', error);
+                document.getElementById('history-list').innerHTML = '<div class="text-red-500 text-center py-8">Failed to load history</div>';
             }
         }
-        
-        setInterval(drawMatrix, 35);
-        
-        window.addEventListener('resize', () => {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-        });
-        
-        // Socket.IO Connection
-        const socket = io('http://localhost:3001');
-        let currentAttackId = null;
+
+        document.getElementById('refresh-history-btn').addEventListener('click', loadHistoryData);
+
+        function updateAuthStatus(message, type = 'info') {
+            const palette = {
+                info: 'text-slate-500',
+                success: 'text-emerald-600',
+                error: 'text-rose-500'
+            };
+            const tone = palette[type] || palette.info;
+            elements.authStatus.textContent = message || '';
+            elements.authStatus.className = `text-sm min-h-[1.5rem] ${tone}`;
+        }
+
+        function enableAuthButtons(enabled) {
+            elements.registerBtn.disabled = !enabled;
+            elements.loginBtn.disabled = !enabled;
+        }
+
+        function addConsoleLine(message) {
+            if (!elements.consoleOutput) return;
+            const line = document.createElement('div');
+            line.className = 'console-line';
+            line.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            elements.consoleOutput.appendChild(line);
+            elements.consoleOutput.scrollTop = elements.consoleOutput.scrollHeight;
+        }
+
+        function updateAgentCard(agent, status, text) {
+            const cardId = cardMap[agent];
+            if (!cardId) return;
+            const card = document.getElementById(cardId);
+            if (!card) return;
+            const statusEl = card.querySelector('.status');
+            card.classList.remove('working', 'completed', 'failed');
+            if (status) {
+                card.classList.add(status);
+            }
+            if (statusEl) {
+                statusEl.textContent = text;
+            }
+        }
+
+        function base64urlToUint8Array(base64url) {
+            const padding = '='.repeat((4 - (base64url.length % 4)) % 4);
+            const base64 = (base64url + padding).replace(/-/g, '+').replace(/_/g, '/');
+            const rawData = window.atob(base64);
+            const output = new Uint8Array(rawData.length);
+            for (let i = 0; i < rawData.length; ++i) {
+                output[i] = rawData.charCodeAt(i);
+            }
+            return output;
+        }
+
+        function uint8ArrayToBase64url(uint8Array) {
+            let string = '';
+            for (let i = 0; i < uint8Array.length; i++) {
+                string += String.fromCharCode(uint8Array[i]);
+            }
+            return window.btoa(string).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+        }
+
+        function decodeRegistrationOptions(options) {
+            return {
+                ...options,
+                challenge: base64urlToUint8Array(options.challenge),
+                user: {
+                    ...options.user,
+                    id: base64urlToUint8Array(options.user.id)
+                },
+                excludeCredentials: (options.excludeCredentials || []).map(cred => ({
+                    ...cred,
+                    id: base64urlToUint8Array(cred.id)
+                }))
+            };
+        }
+
+        function decodeAuthenticationOptions(options) {
+            return {
+                ...options,
+                challenge: base64urlToUint8Array(options.challenge),
+                allowCredentials: (options.allowCredentials || []).map(cred => ({
+                    ...cred,
+                    id: base64urlToUint8Array(cred.id)
+                }))
+            };
+        }
+
+        function credentialToJSON(credential) {
+            if (!credential) return null;
+            const response = credential.response || {};
+            const json = {
+                id: credential.id,
+                rawId: uint8ArrayToBase64url(new Uint8Array(credential.rawId)),
+                type: credential.type,
+                clientExtensionResults: credential.getClientExtensionResults ? credential.getClientExtensionResults() : {},
+                response: {}
+            };
+            if (response.attestationObject) {
+                json.response.attestationObject = uint8ArrayToBase64url(new Uint8Array(response.attestationObject));
+            }
+            if (response.clientDataJSON) {
+                json.response.clientDataJSON = uint8ArrayToBase64url(new Uint8Array(response.clientDataJSON));
+            }
+            if (response.authenticatorData) {
+                json.response.authenticatorData = uint8ArrayToBase64url(new Uint8Array(response.authenticatorData));
+            }
+            if (response.signature) {
+                json.response.signature = uint8ArrayToBase64url(new Uint8Array(response.signature));
+            }
+            if (response.userHandle) {
+                json.response.userHandle = uint8ArrayToBase64url(new Uint8Array(response.userHandle));
+            }
+            return json;
+        }
+
+        function storeSession(data) {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        }
+
+        function clearSessionStorage() {
+            localStorage.removeItem(STORAGE_KEY);
+        }
+
+        function setUserDisplay(text) {
+            if (elements.userDisplay) {
+                elements.userDisplay.textContent = text || '';
+            }
+        }
+
+        function resetAgentCards() {
+            Object.keys(cardMap).forEach(agent => updateAgentCard(agent, '', 'IDLE'));
+        }
+
+        function renderLLMShell() {
+            if (!elements.llmShellList) return;
+            elements.llmShellList.innerHTML = '';
+            if (!llmEntries.length) {
+                const empty = document.createElement('div');
+                empty.className = 'text-sm text-slate-400';
+                empty.textContent = 'No model evaluations yet.';
+                elements.llmShellList.appendChild(empty);
+                return;
+            }
+
+            llmEntries.slice(0, 8).forEach(entry => {
+                const card = document.createElement('div');
+                card.className = 'llm-shell-entry';
+
+                const header = document.createElement('div');
+                header.className = 'llm-shell-header';
+                const timestamp = new Date(entry.timestamp || Date.now()).toLocaleTimeString();
+                header.innerHTML = `<span>${entry.model}</span><span class="llm-shell-tag">Attack #${entry.attackId} • ${timestamp}${entry.simulated ? ' • Simulated' : ''}</span>`;
+
+                const promptBlock = document.createElement('pre');
+                promptBlock.className = 'llm-shell-block';
+                promptBlock.textContent = `$ prompt\n${entry.prompt}`;
+
+                const responseBlock = document.createElement('pre');
+                responseBlock.className = 'llm-shell-block';
+                responseBlock.textContent = `# response\n${entry.response}`;
+
+                card.appendChild(header);
+                card.appendChild(promptBlock);
+                card.appendChild(responseBlock);
+
+                elements.llmShellList.appendChild(card);
+            });
+        }
+
+        function ingestLLMEntries(attackId, entries = []) {
+            entries.forEach(entry => {
+                llmEntries.unshift({
+                    attackId,
+                    model: entry.model,
+                    provider: entry.provider,
+                    prompt: entry.prompt,
+                    response: entry.response,
+                    simulated: Boolean(entry.simulated),
+                    timestamp: entry.timestamp || new Date().toISOString()
+                });
+            });
+            if (llmEntries.length > 16) {
+                llmEntries.length = 16;
+            }
+            renderLLMShell();
+        }
+
+        function showLoginScreen() {
+            elements.loginScreen.classList.remove('hidden');
+            elements.dashboard.classList.add('hidden');
+        }
+
+        function showDashboard() {
+            elements.loginScreen.classList.add('hidden');
+            elements.dashboard.classList.remove('hidden');
+            setUserDisplay(currentUser ? `Signed in as ${currentUser.displayName || currentUser.username}` : '');
+        }
+
+        function clearSessionUI() {
+            currentAttackId = null;
+            resetAgentCards();
+            if (elements.consoleOutput) {
+                elements.consoleOutput.innerHTML = '';
+            }
+            elements.exportBtn.disabled = true;
+            pendingActions.clear();
+            llmEntries.length = 0;
+            renderPendingActions();
+            renderLLMShell();
+            setUserDisplay('');
+            elements.passkeyControls.classList.remove('hidden');
+            elements.attackConfig.classList.add('hidden');
+            updateAuthStatus('', 'info');
+        }
+
+        function disconnectSocket() {
+            if (socket) {
+                socket.disconnect();
+                socket = null;
+            }
+        }
+
+        function clearSession() {
+            sessionToken = null;
+            currentUser = null;
+            disconnectSocket();
+            clearSessionStorage();
+            clearSessionUI();
+            showLoginScreen();
+        }
+
+        function handleUnauthorized() {
+            clearSession();
+            updateAuthStatus('Session expired. Please sign in again.', 'error');
+        }
+
+        async function apiFetch(path, options = {}) {
+            if (!sessionToken) {
+                throw new Error('Authentication required');
+            }
+            const headers = new Headers(options.headers || {});
+            headers.set('Authorization', `Bearer ${sessionToken}`);
+            if (options.body && !(options.body instanceof FormData) && !headers.has('Content-Type')) {
+                headers.set('Content-Type', 'application/json');
+            }
+            const response = await fetch(`${API_BASE}${path}`, {
+                ...options,
+                headers
+            });
+            if (response.status === 401) {
+                handleUnauthorized();
+                throw new Error('Unauthorized');
+            }
+            return response;
+        }
+
+        async function apiRequest(path, options = {}) {
+            const response = await apiFetch(path, options);
+            let data = null;
+            try {
+                data = await response.json();
+            } catch (err) {
+                data = null;
+            }
+            if (!response.ok) {
+                const message = data?.error || response.statusText || 'Request failed';
+                throw new Error(message);
+            }
+            return data;
+        }
+
+        async function loadDefaultConfig() {
+            try {
+                const config = await apiRequest('/api/config');
+                if (config.attack) {
+                    elements.targetDriver.value = config.attack.targetDriver || elements.targetDriver.value;
+                    elements.successRate.value = typeof config.attack.baseSuccessRate === 'number'
+                        ? config.attack.baseSuccessRate.toFixed(2)
+                        : elements.successRate.value;
+                    elements.attackDay.value = config.attack.day || elements.attackDay.value;
+                }
+            } catch (error) {
+                console.warn('Failed to load default config:', error);
+            }
+        }
+
+        function renderPendingActions() {
+            if (!elements.hilList) return;
+            elements.hilList.innerHTML = '';
+            if (!sessionToken) {
+                const msg = document.createElement('div');
+                msg.className = 'text-sm text-slate-400';
+                msg.textContent = 'Authenticate to review pending approvals.';
+                elements.hilList.appendChild(msg);
+                return;
+            }
+            if (!pendingActions.size) {
+                const msg = document.createElement('div');
+                msg.className = 'text-sm text-slate-400';
+                msg.textContent = 'No pending actions.';
+                elements.hilList.appendChild(msg);
+                return;
+            }
+            Array.from(pendingActions.values())
+                .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+                .forEach(action => {
+                    const card = document.createElement('div');
+                    card.className = 'approval-card space-y-2';
+
+                    const header = document.createElement('div');
+                    header.className = 'flex items-center justify-between gap-3 flex-wrap';
+
+                    const title = document.createElement('h4');
+                    title.textContent = action.title;
+
+                    const severity = document.createElement('span');
+                    severity.className = 'llm-shell-tag';
+                    severity.textContent = (action.severity || 'info').toUpperCase();
+
+                    header.appendChild(title);
+                    header.appendChild(severity);
+
+                    const description = document.createElement('p');
+                    description.className = 'text-sm text-slate-600';
+                    description.textContent = action.description || 'No additional context provided.';
+
+                    const meta = document.createElement('div');
+                    meta.className = 'meta';
+                    meta.textContent = `Requested by ${action.requestedBy || 'System'} • Attack #${action.attackId}`;
+
+                    const buttonRow = document.createElement('div');
+                    buttonRow.className = 'flex gap-3 pt-2';
+
+                    const approveBtn = document.createElement('button');
+                    approveBtn.className = 'primary-btn flex-1';
+                    approveBtn.textContent = 'Approve';
+                    approveBtn.addEventListener('click', () => handleActionDecision(action.id, 'approve', approveBtn));
+
+                    const rejectBtn = document.createElement('button');
+                    rejectBtn.className = 'danger-outline-btn flex-1';
+                    rejectBtn.textContent = 'Reject';
+                    rejectBtn.addEventListener('click', () => handleActionDecision(action.id, 'reject', rejectBtn));
+
+                    buttonRow.appendChild(approveBtn);
+                    buttonRow.appendChild(rejectBtn);
+
+                    card.appendChild(header);
+                    card.appendChild(description);
+                    if (action.metadata?.suggestion?.reason) {
+                        const reason = document.createElement('p');
+                        reason.className = 'text-sm text-slate-500 italic';
+                        reason.textContent = action.metadata.suggestion.reason;
+                        card.appendChild(reason);
+                    }
+                    card.appendChild(meta);
+                    card.appendChild(buttonRow);
+
+                    elements.hilList.appendChild(card);
+                });
+        }
+
+        function addPendingAction(action) {
+            if (!action || !action.id) return;
+            pendingActions.set(action.id, action);
+            renderPendingActions();
+            addConsoleLine(`🛑 Awaiting approval: ${action.title}`);
+        }
+
+        function resolvePendingAction(action) {
+            if (!action || !action.id) return;
+            pendingActions.delete(action.id);
+            renderPendingActions();
+            const emoji = action.status === 'approved' ? '✅' : '🚫';
+            addConsoleLine(`${emoji} ${action.title} ${action.status} by ${action.resolvedBy || 'reviewer'}`);
+        }
+
+        async function fetchPendingActions() {
+            if (!sessionToken) return;
+            try {
+                const data = await apiRequest('/api/hil/pending');
+                pendingActions.clear();
+                (data.actions || []).forEach(action => {
+                    if (action && action.id) {
+                        pendingActions.set(action.id, action);
+                    }
+                });
+                renderPendingActions();
+            } catch (error) {
+                addConsoleLine(`⚠️ Unable to load approval queue: ${error.message}`);
+            }
+        }
+
+        async function handleActionDecision(id, decision, buttonEl) {
+            if (!sessionToken) return;
+            const action = pendingActions.get(id);
+            if (!action) return;
+            if (buttonEl) {
+                buttonEl.disabled = true;
+            }
+            try {
+                const data = await apiRequest(`/api/hil/${id}/${decision === 'approve' ? 'approve' : 'reject'}`, {
+                    method: 'POST',
+                    body: JSON.stringify({ notes: '' })
+                });
+                resolvePendingAction(data);
+            } catch (error) {
+                addConsoleLine(`❌ ${decision === 'approve' ? 'Approval' : 'Rejection'} failed: ${error.message}`);
+            } finally {
+                if (buttonEl) {
+                    buttonEl.disabled = false;
+                }
+            }
+        }
+
+        async function connectSocket() {
+            if (!sessionToken) return;
+            disconnectSocket();
+            socket = io(API_BASE, {
+                auth: { token: sessionToken }
+            });
         
         socket.on('connect', () => {
             addConsoleLine('🔌 Connected to attack server');
@@ -262,6 +1134,10 @@
         
         socket.on('disconnect', () => {
             addConsoleLine('❌ Disconnected from server');
+        });
+
+            socket.on('connect_error', (error) => {
+                addConsoleLine(`⚠️ Socket error: ${error.message}`);
         });
         
         socket.on('agent:message', (data) => {
@@ -285,120 +1161,233 @@
         
         socket.on('attack:completed', (data) => {
             addConsoleLine(`✅ Attack completed. Success: ${data.success}`);
-            document.getElementById('export-btn').disabled = false;
+                elements.exportBtn.disabled = false;
         });
         
         socket.on('attack:failed', (data) => {
             addConsoleLine(`❌ Attack failed: ${data.error}`);
         });
         
-        // Form Submission
-        document.getElementById('attack-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const targetDriver = document.getElementById('target-driver').value;
-            const successRate = parseFloat(document.getElementById('success-rate').value);
-            const attackDay = parseInt(document.getElementById('attack-day').value);
-            
+            socket.on('hil:pending', addPendingAction);
+            socket.on('hil:resolved', resolvePendingAction);
+            socket.on('llm:transcript', (data) => {
+                if (!data || !Array.isArray(data.entries)) return;
+                ingestLLMEntries(data.attackId, data.entries);
+            });
+        }
+
+        async function completeAuthentication(payload) {
+            sessionToken = payload.token;
+            currentUser = payload.user;
+            storeSession({ token: sessionToken, user: currentUser });
+            elements.passkeyControls.classList.add('hidden');
+            elements.attackConfig.classList.remove('hidden');
+            setUserDisplay(`Signed in as ${currentUser.displayName || currentUser.username}`);
+            updateAuthStatus('Passkey verified. Configure your next attack.', 'success');
+            await connectSocket();
+            await loadDefaultConfig();
+            await fetchPendingActions();
+        }
+
+        async function registerPasskey() {
+            if (!window.PublicKeyCredential) {
+                updateAuthStatus('Passkeys are not supported in this browser.', 'error');
+                return;
+            }
+            const username = (elements.usernameInput.value || '').trim().toLowerCase();
+            if (!username) {
+                updateAuthStatus('Enter a username to register a passkey.', 'error');
+                return;
+            }
+            enableAuthButtons(false);
+            updateAuthStatus('Requesting registration challenge...');
             try {
-                // Create attack
-                const createResponse = await fetch('http://localhost:3001/api/attacks/create', {
+                const displayName = (elements.displayNameInput.value || '').trim() || username;
+                const startResponse = await fetch(`${API_BASE}/api/auth/register/start`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        config: {
-                            targetDriver,
-                            baseSuccessRate: successRate,
-                            day: attackDay,
-                            timing: new Date().toLocaleTimeString()
-                        }
-                    })
+                    body: JSON.stringify({ username, displayName })
                 });
-                
-                const { attackId } = await createResponse.json();
-                currentAttackId = attackId;
-                
-                // Show dashboard
-                document.getElementById('login-screen').classList.add('hidden');
-                document.getElementById('dashboard').classList.remove('hidden');
-                
-                // Start attack
-                await fetch(`http://localhost:3001/api/attacks/${attackId}/start`, {
-                    method: 'POST'
+                const startData = await startResponse.json();
+                if (!startResponse.ok) {
+                    throw new Error(startData.error || 'Registration challenge failed');
+                }
+                const publicKey = decodeRegistrationOptions(startData.options);
+                const credential = await navigator.credentials.create({ publicKey });
+                if (!credential) {
+                    throw new Error('Registration cancelled');
+                }
+                const attestation = credentialToJSON(credential);
+                const finishResponse = await fetch(`${API_BASE}/api/auth/register/finish`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, attestation })
                 });
-                
+                const finishData = await finishResponse.json();
+                if (!finishResponse.ok) {
+                    throw new Error(finishData.error || 'Registration verification failed');
+                }
+                await completeAuthentication(finishData);
+            } catch (error) {
+                console.error(error);
+                updateAuthStatus(error.message || 'Passkey registration failed', 'error');
+            } finally {
+                enableAuthButtons(true);
+            }
+        }
+
+        async function loginPasskey() {
+            if (!window.PublicKeyCredential) {
+                updateAuthStatus('Passkeys are not supported in this browser.', 'error');
+                return;
+            }
+            const username = (elements.usernameInput.value || '').trim().toLowerCase();
+            if (!username) {
+                updateAuthStatus('Enter your username to sign in.', 'error');
+                return;
+            }
+            enableAuthButtons(false);
+            updateAuthStatus('Requesting authentication challenge...');
+            try {
+                const startResponse = await fetch(`${API_BASE}/api/auth/login/start`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username })
+                });
+                const startData = await startResponse.json();
+                if (!startResponse.ok) {
+                    throw new Error(startData.error || 'Authentication challenge failed');
+                }
+                const publicKey = decodeAuthenticationOptions(startData.options);
+                const assertion = await navigator.credentials.get({ publicKey });
+                if (!assertion) {
+                    throw new Error('Authentication cancelled');
+                }
+                const assertionJSON = credentialToJSON(assertion);
+                const finishResponse = await fetch(`${API_BASE}/api/auth/login/finish`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, assertion: assertionJSON })
+                });
+                const finishData = await finishResponse.json();
+                if (!finishResponse.ok) {
+                    throw new Error(finishData.error || 'Authentication verification failed');
+                }
+                await completeAuthentication(finishData);
+            } catch (error) {
+                console.error(error);
+                updateAuthStatus(error.message || 'Passkey sign-in failed', 'error');
+            } finally {
+                enableAuthButtons(true);
+            }
+        }
+
+        async function logout() {
+            if (!sessionToken) {
+                clearSession();
+                return;
+            }
+            try {
+                await apiRequest('/api/auth/logout', { method: 'POST' });
+            } catch (error) {
+                // ignored
+            } finally {
+                clearSession();
+            }
+        }
+
+        elements.attackForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            if (!sessionToken) {
+                updateAuthStatus('Authenticate before launching attacks.', 'error');
+                return;
+            }
+            try {
+                const config = {
+                    targetDriver: elements.targetDriver.value,
+                    baseSuccessRate: parseFloat(elements.successRate.value),
+                    day: parseInt(elements.attackDay.value, 10),
+                    timing: new Date().toLocaleTimeString()
+                };
+                const createData = await apiRequest('/api/attacks/create', {
+                    method: 'POST',
+                    body: JSON.stringify({ config })
+                });
+                currentAttackId = createData.attackId;
+                await apiRequest(`/api/attacks/${currentAttackId}/start`, { method: 'POST' });
+                showDashboard();
+                elements.exportBtn.disabled = true;
             } catch (error) {
                 addConsoleLine(`❌ Error: ${error.message}`);
             }
         });
         
-        // Export Button
-        document.getElementById('export-btn').addEventListener('click', async () => {
+        elements.exportBtn.addEventListener('click', async () => {
             if (!currentAttackId) return;
-            
             try {
-                const response = await fetch(`http://localhost:3001/api/attacks/${currentAttackId}`);
-                const data = await response.json();
-                
+                const data = await apiRequest(`/api/attacks/${currentAttackId}`);
                 const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
                 a.download = `attack-${currentAttackId}-export.json`;
                 a.click();
-                
                 addConsoleLine('📥 Attack data exported');
             } catch (error) {
                 addConsoleLine(`❌ Export error: ${error.message}`);
             }
         });
         
-        // Reset Button
-        document.getElementById('reset-btn').addEventListener('click', () => {
-            document.getElementById('login-screen').classList.remove('hidden');
-            document.getElementById('dashboard').classList.add('hidden');
-            document.getElementById('console-output').innerHTML = '';
-            document.getElementById('export-btn').disabled = true;
-            
-            // Reset agent cards
-            ['orchestrator', 'phishing', 'gps', 'api'].forEach(agent => {
-                updateAgentCard(agent, '', 'IDLE');
-            });
-        });
-        
-        // Helper Functions
-        function addConsoleLine(message) {
-            const console = document.getElementById('console-output');
-            const line = document.createElement('div');
-            line.className = 'console-line';
-            line.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
-            console.appendChild(line);
-            console.scrollTop = console.scrollHeight;
-        }
-        
-        function updateAgentCard(agent, status, text) {
-            const cardMap = {
-                'orchestrator': 'orchestrator-card',
-                'phishing': 'phishing-card',
-                'gps': 'gps-card',
-                'api': 'api-card'
-            };
-            
-            const cardId = cardMap[agent];
-            if (!cardId) return;
-            
-            const card = document.getElementById(cardId);
-            const statusEl = card.querySelector('.status');
-            
-            // Remove all status classes
-            card.classList.remove('working', 'completed', 'failed');
-            
-            if (status) {
-                card.classList.add(status);
+        elements.resetBtn.addEventListener('click', () => {
+            elements.dashboard.classList.add('hidden');
+            elements.loginScreen.classList.remove('hidden');
+            elements.attackConfig.classList.remove('hidden');
+            if (elements.consoleOutput) {
+                elements.consoleOutput.innerHTML = '';
             }
-            
-            statusEl.textContent = text;
+            elements.exportBtn.disabled = true;
+            resetAgentCards();
+        });
+
+        elements.logoutBtn.addEventListener('click', logout);
+        elements.registerBtn.addEventListener('click', registerPasskey);
+        elements.loginBtn.addEventListener('click', loginPasskey);
+        elements.refreshHilBtn.addEventListener('click', fetchPendingActions);
+
+        async function restoreSession() {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (!saved) {
+                renderPendingActions();
+                renderLLMShell();
+                return;
+            }
+            try {
+                const parsed = JSON.parse(saved);
+                if (!parsed.token) {
+                    clearSessionStorage();
+                    renderPendingActions();
+                    renderLLMShell();
+                    return;
+                }
+                sessionToken = parsed.token;
+                currentUser = parsed.user;
+                const sessionData = await apiRequest('/api/auth/session');
+                await completeAuthentication({
+                    user: sessionData.user || currentUser,
+                    token: sessionData.token || sessionToken
+                });
+            } catch (error) {
+                console.warn('Failed to restore session', error);
+                clearSession();
+            } finally {
+                renderPendingActions();
+                renderLLMShell();
+            }
         }
+
+        renderPendingActions();
+        renderLLMShell();
+        restoreSession();
     </script>
 </body>
 </html>
