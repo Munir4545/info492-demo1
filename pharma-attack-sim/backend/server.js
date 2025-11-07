@@ -7,7 +7,7 @@ const Database = require('better-sqlite3');
 const fs = require('fs');
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
-const { runAttack, triggerAgent } = require('./agents');
+const agents = require('./agents');
 const { getAllTiers, getTierData } = require('./auth-tiers');
 const { runAllExperiments } = require('./experiments/dr-chen-experiments');
 const { getSuggestions, updateAttackState, getAttackState, analyzeAndSuggest } = require('./llm-suggestions');
@@ -36,6 +36,76 @@ const io = new Server(server, {
 
 app.use(cors());
 app.use(express.json());
+
+// Global attack metrics tracker
+const attackMetricsTracker = new Map();
+
+function initializeAttackMetrics(attackId) {
+  attackMetricsTracker.set(attackId, {
+    startTime: Date.now(),
+    firstImpactTime: null,
+    compromisedDeliveries: 0,
+    affectedPatients: 0,
+    criticalMedications: 0,
+    financialImpact: 0,
+    phishing: { attempted: false, success: false, effectiveness: 0 },
+    gps: { attempted: false, success: false, effectiveness: 0 },
+    api: { attempted: false, success: false, effectiveness: 0 }
+  });
+}
+
+function updateAttackMetrics(attackId, updates) {
+  const metrics = attackMetricsTracker.get(attackId);
+  if (!metrics) return;
+  
+  Object.assign(metrics, updates);
+  attackMetricsTracker.set(attackId, metrics);
+}
+
+function getAttackMetrics(attackId) {
+  return attackMetricsTracker.get(attackId) || null;
+}
+
+function finalizeAttackMetrics(attackId) {
+  const metrics = attackMetricsTracker.get(attackId);
+  if (!metrics) return null;
+  
+  const endTime = Date.now();
+  const durationSeconds = Math.round((endTime - metrics.startTime) / 1000);
+  
+  let timeToImpactSeconds = null;
+  if (metrics.firstImpactTime) {
+    timeToImpactSeconds = Math.round((metrics.firstImpactTime - metrics.startTime) / 1000);
+  }
+  
+  // Calculate detection delay (typically 30s after GPS spoofing)
+  const detectionDelaySeconds = metrics.gps.success ? 30 : null;
+  
+  // Calculate recovery time (12 min per compromised delivery)
+  const recoveryTimeMinutes = metrics.compromisedDeliveries * 12;
+  
+  const finalMetrics = {
+    duration_seconds: durationSeconds,
+    compromised_deliveries: metrics.compromisedDeliveries,
+    affected_patients: metrics.affectedPatients,
+    critical_medications: metrics.criticalMedications,
+    financial_impact: metrics.financialImpact,
+    time_to_impact_seconds: timeToImpactSeconds,
+    detection_delay_seconds: detectionDelaySeconds,
+    recovery_time_minutes: recoveryTimeMinutes,
+    phishing_success: metrics.phishing.success ? 1 : 0,
+    phishing_effectiveness: metrics.phishing.effectiveness,
+    gps_success: metrics.gps.success ? 1 : 0,
+    gps_effectiveness: metrics.gps.effectiveness,
+    api_success: metrics.api.success ? 1 : 0,
+    api_effectiveness: metrics.api.effectiveness
+  };
+  
+  // Clean up
+  attackMetricsTracker.delete(attackId);
+  
+  return finalMetrics;
+}
 
 const authRouter = express.Router();
 
@@ -123,17 +193,66 @@ const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
 const dbPath = path.join(__dirname, 'attacks.db');
 const db = new Database(dbPath);
 
-// Create tables
-db.exec(`
-  CREATE TABLE IF NOT EXISTS attacks (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    config TEXT,
-    status TEXT DEFAULT 'pending',
-    success BOOLEAN,
-    started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    completed_at DATETIME
-  );
+// Migrate database schema
+// Check if new columns exist, if not add them
+try {
+  const tableInfo = db.pragma('table_info(attacks)');
+  const columnNames = tableInfo.map(col => col.name);
+  
+  const newColumns = [
+    { name: 'duration_seconds', type: 'INTEGER' },
+    { name: 'compromised_deliveries', type: 'INTEGER', default: 0 },
+    { name: 'affected_patients', type: 'INTEGER', default: 0 },
+    { name: 'critical_medications', type: 'INTEGER', default: 0 },
+    { name: 'financial_impact', type: 'INTEGER', default: 0 },
+    { name: 'time_to_impact_seconds', type: 'INTEGER' },
+    { name: 'detection_delay_seconds', type: 'INTEGER' },
+    { name: 'recovery_time_minutes', type: 'INTEGER' },
+    { name: 'phishing_success', type: 'BOOLEAN' },
+    { name: 'phishing_effectiveness', type: 'INTEGER' },
+    { name: 'gps_success', type: 'BOOLEAN' },
+    { name: 'gps_effectiveness', type: 'INTEGER' },
+    { name: 'api_success', type: 'BOOLEAN' },
+    { name: 'api_effectiveness', type: 'INTEGER' }
+  ];
+  
+  newColumns.forEach(col => {
+    if (!columnNames.includes(col.name)) {
+      const defaultClause = col.default !== undefined ? ` DEFAULT ${col.default}` : '';
+      db.exec(`ALTER TABLE attacks ADD COLUMN ${col.name} ${col.type}${defaultClause}`);
+      console.log(`Added column: ${col.name}`);
+    }
+  });
+} catch (error) {
+  // Table doesn't exist, create it
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS attacks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      config TEXT,
+      status TEXT DEFAULT 'pending',
+      success BOOLEAN,
+      started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      completed_at DATETIME,
+      duration_seconds INTEGER,
+      compromised_deliveries INTEGER DEFAULT 0,
+      affected_patients INTEGER DEFAULT 0,
+      critical_medications INTEGER DEFAULT 0,
+      financial_impact INTEGER DEFAULT 0,
+      time_to_impact_seconds INTEGER,
+      detection_delay_seconds INTEGER,
+      recovery_time_minutes INTEGER,
+      phishing_success BOOLEAN,
+      phishing_effectiveness INTEGER,
+      gps_success BOOLEAN,
+      gps_effectiveness INTEGER,
+      api_success BOOLEAN,
+      api_effectiveness INTEGER
+    )
+  `);
+}
 
+// Create other tables
+db.exec(`
   CREATE TABLE IF NOT EXISTS logs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     attack_id INTEGER,
@@ -282,13 +401,13 @@ async function executeSuggestion(attackId, suggestion) {
       log(parseInt(attackId), 'LLM', `🔄 Retrying phishing with LLM-optimized message (attempt ${retryCount})...`, io, db);
       
       try {
-        await triggerAgent('phishing', parseInt(attackId), attackConfig, io, db, config, log);
+        await agents.triggerAgent('phishing', parseInt(attackId), attackConfig, io, db, config, log);
       } catch (error) {
         console.error('Error executing phishing retry:', error);
       }
     } else if (suggestion.action === 'gps' || suggestion.action === 'api' || suggestion.action === 'orchestrator') {
       try {
-        await triggerAgent(suggestion.action, parseInt(attackId), attackConfig, io, db, config, log);
+        await agents.triggerAgent(suggestion.action, parseInt(attackId), attackConfig, io, db, config, log);
       } catch (error) {
         console.error('Error auto-executing suggestion:', error);
       }
@@ -384,12 +503,65 @@ app.post('/api/attacks/:id/start', authenticate, async (req, res) => {
   const updateStmt = db.prepare('UPDATE attacks SET status = ? WHERE id = ?');
   updateStmt.run('running', attackId);
   
+  // Initialize attack metrics tracking
+  initializeAttackMetrics(attackId);
+  
   io.emit('attack:started', { attackId });
   
+  // Set metric tracker for agents to use
+  agents.setMetricsTracker({ getAttackMetrics, updateAttackMetrics });
+  
   // Start attack in background
-  runAttack(attackId, attackConfig, io, db, config, log).then((success) => {
-    const completeStmt = db.prepare('UPDATE attacks SET status = ?, success = ?, completed_at = CURRENT_TIMESTAMP WHERE id = ?');
-    completeStmt.run('completed', success ? 1 : 0, attackId);
+  agents.runAttack(attackId, attackConfig, io, db, config, log).then((success) => {
+    // Finalize and save metrics
+    const finalMetrics = finalizeAttackMetrics(attackId);
+    
+    if (finalMetrics) {
+      const completeStmt = db.prepare(`
+        UPDATE attacks SET 
+          status = ?, 
+          success = ?, 
+          completed_at = CURRENT_TIMESTAMP,
+          duration_seconds = ?,
+          compromised_deliveries = ?,
+          affected_patients = ?,
+          critical_medications = ?,
+          financial_impact = ?,
+          time_to_impact_seconds = ?,
+          detection_delay_seconds = ?,
+          recovery_time_minutes = ?,
+          phishing_success = ?,
+          phishing_effectiveness = ?,
+          gps_success = ?,
+          gps_effectiveness = ?,
+          api_success = ?,
+          api_effectiveness = ?
+        WHERE id = ?
+      `);
+      completeStmt.run(
+        'completed', 
+        success ? 1 : 0,
+        finalMetrics.duration_seconds,
+        finalMetrics.compromised_deliveries,
+        finalMetrics.affected_patients,
+        finalMetrics.critical_medications,
+        finalMetrics.financial_impact,
+        finalMetrics.time_to_impact_seconds,
+        finalMetrics.detection_delay_seconds,
+        finalMetrics.recovery_time_minutes,
+        finalMetrics.phishing_success,
+        finalMetrics.phishing_effectiveness,
+        finalMetrics.gps_success,
+        finalMetrics.gps_effectiveness,
+        finalMetrics.api_success,
+        finalMetrics.api_effectiveness,
+        attackId
+      );
+    } else {
+      const completeStmt = db.prepare('UPDATE attacks SET status = ?, success = ?, completed_at = CURRENT_TIMESTAMP WHERE id = ?');
+      completeStmt.run('completed', success ? 1 : 0, attackId);
+    }
+    
     io.emit('attack:completed', { attackId, success });
   }).catch((error) => {
     console.error('Attack error:', error);
@@ -539,8 +711,7 @@ app.post('/api/agents/:name/trigger', authenticate, async (req, res) => {
   
   // Trigger the agent
   try {
-    const { triggerAgent } = require('./agents');
-    await triggerAgent(agentName, parseInt(attackId), attackConfig, io, db, config, log, tier);
+    await agents.triggerAgent(agentName, parseInt(attackId), attackConfig, io, db, config, log, tier);
     
     res.json({ success: true, agent: agentName });
   } catch (error) {

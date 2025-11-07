@@ -1006,20 +1006,75 @@
                         const statusText = attack.success === 1 ? '✅ Success' : '❌ Failed';
                         const date = new Date(attack.started_at).toLocaleString();
                         
+                        // Format duration
+                        const duration = attack.duration_seconds 
+                            ? `${Math.floor(attack.duration_seconds / 60)}m ${attack.duration_seconds % 60}s` 
+                            : 'N/A';
+                        
+                        // Format recovery time
+                        const recoveryTime = attack.recovery_time_minutes 
+                            ? `${attack.recovery_time_minutes} min` 
+                            : 'N/A';
+                        
+                        // Vector success indicators
+                        const phishingIcon = attack.phishing_success === 1 ? '✅' : '❌';
+                        const gpsIcon = attack.gps_success === 1 ? '✅' : '❌';
+                        const apiIcon = attack.api_success === 1 ? '✅' : '❌';
+                        
                         return `
                             <div class="history-item">
-                                <div class="flex items-start justify-between mb-2">
+                                <div class="flex items-start justify-between mb-3">
                                     <div>
                                         <div class="font-semibold text-slate-800">Attack #${attack.id}</div>
                                         <div class="text-xs text-slate-500 mt-1">${date}</div>
                                     </div>
                                     <div class="font-semibold ${statusColor}">${statusText}</div>
                                 </div>
-                                <div class="grid grid-cols-2 gap-2 text-xs text-slate-600 mt-3">
-                                    <div><span class="text-slate-500">Target:</span> ${config.targetDriver || 'N/A'}</div>
-                                    <div><span class="text-slate-500">Success Rate:</span> ${((config.baseSuccessRate || 0) * 100).toFixed(0)}%</div>
-                                    <div><span class="text-slate-500">Day:</span> ${config.day || 'N/A'}</div>
-                                    <div><span class="text-slate-500">Status:</span> ${attack.status || 'N/A'}</div>
+                                
+                                <!-- Attack Metrics -->
+                                <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs mb-3">
+                                    <div class="bg-slate-50 rounded px-2 py-1">
+                                        <div class="text-slate-500">Duration</div>
+                                        <div class="font-semibold text-slate-800">${duration}</div>
+                                    </div>
+                                    <div class="bg-slate-50 rounded px-2 py-1">
+                                        <div class="text-slate-500">Deliveries</div>
+                                        <div class="font-semibold text-purple-600">${attack.compromised_deliveries || 0}</div>
+                                    </div>
+                                    <div class="bg-slate-50 rounded px-2 py-1">
+                                        <div class="text-slate-500">Patients</div>
+                                        <div class="font-semibold text-red-600">${attack.affected_patients || 0}</div>
+                                    </div>
+                                    <div class="bg-slate-50 rounded px-2 py-1">
+                                        <div class="text-slate-500">Critical</div>
+                                        <div class="font-semibold text-orange-600">${attack.critical_medications || 0}</div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Impact Metrics -->
+                                <div class="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs mb-3">
+                                    <div class="bg-slate-50 rounded px-2 py-1">
+                                        <div class="text-slate-500">Financial</div>
+                                        <div class="font-semibold text-blue-600">$${(attack.financial_impact || 0).toLocaleString()}</div>
+                                    </div>
+                                    <div class="bg-slate-50 rounded px-2 py-1">
+                                        <div class="text-slate-500">Time to Impact</div>
+                                        <div class="font-semibold text-orange-600">${attack.time_to_impact_seconds || 'N/A'}s</div>
+                                    </div>
+                                    <div class="bg-slate-50 rounded px-2 py-1">
+                                        <div class="text-slate-500">Recovery Est.</div>
+                                        <div class="font-semibold text-slate-700">${recoveryTime}</div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Attack Vectors -->
+                                <div class="border-t border-slate-200 pt-2 mt-2">
+                                    <div class="text-xs text-slate-500 mb-1">Attack Vectors:</div>
+                                    <div class="flex gap-3 text-xs">
+                                        <div><span class="text-slate-600">Phishing:</span> ${phishingIcon} <span class="text-slate-500">${attack.phishing_effectiveness || 0}%</span></div>
+                                        <div><span class="text-slate-600">GPS:</span> ${gpsIcon} <span class="text-slate-500">${attack.gps_effectiveness || 0}%</span></div>
+                                        <div><span class="text-slate-600">API:</span> ${apiIcon} <span class="text-slate-500">${attack.api_effectiveness || 0}%</span></div>
+                                    </div>
                                 </div>
                             </div>
                         `;

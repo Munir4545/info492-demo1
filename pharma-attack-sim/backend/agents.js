@@ -4,6 +4,47 @@ const { calculateTierBypass } = require('./auth-tiers');
 const { analyzeAndSuggest, updateAttackState, getAttackState } = require('./llm-suggestions');
 const { evaluatePhishingWithLLMs, fallbackClickRate } = require('./llm-providers');
 
+// Metrics tracker reference (set by server)
+let metricsTracker = null;
+
+function setMetricsTracker(tracker) {
+  metricsTracker = tracker;
+}
+
+function trackImpact(attackId, impactData) {
+  if (!metricsTracker) return;
+  
+  const metrics = metricsTracker.getAttackMetrics(attackId);
+  if (!metrics) return;
+  
+  const updates = {};
+  
+  // Track first impact time
+  if (!metrics.firstImpactTime && (impactData.packages || impactData.patients)) {
+    updates.firstImpactTime = Date.now();
+  }
+  
+  // Accumulate impact
+  if (impactData.packages) updates.compromisedDeliveries = (metrics.compromisedDeliveries || 0) + impactData.packages;
+  if (impactData.patients) updates.affectedPatients = (metrics.affectedPatients || 0) + impactData.patients;
+  if (impactData.critical) updates.criticalMedications = (metrics.criticalMedications || 0) + impactData.critical;
+  if (impactData.financial) updates.financialImpact = (metrics.financialImpact || 0) + impactData.financial;
+  
+  metricsTracker.updateAttackMetrics(attackId, updates);
+}
+
+function trackVectorSuccess(attackId, vectorName, success, effectiveness) {
+  if (!metricsTracker) return;
+  
+  const metrics = metricsTracker.getAttackMetrics(attackId);
+  if (!metrics) return;
+  
+  const updates = {};
+  updates[vectorName] = { attempted: true, success, effectiveness: success ? effectiveness : 0 };
+  
+  metricsTracker.updateAttackMetrics(attackId, updates);
+}
+
 // Orchestrator Agent - Plans attack and calculates success probability
 async function OrchestratorAgent(attackId, attackConfig, io, db, config, log) {
   log(attackId, 'Orchestrator', '🧠 Analyzing target and planning attack strategy...', io, db);
@@ -232,7 +273,7 @@ async function PhishingAgent(attackId, attackConfig, io, db, config, log) {
     });
     
     // Update impact with affected deliveries
-    io.emit('impact:updated', {
+    const impactData = {
       attackId,
       packages: 2,
       patients: 1,
@@ -256,9 +297,13 @@ async function PhishingAgent(attackId, attackConfig, io, db, config, log) {
         title: 'Driver Credentials Compromised',
         description: 'Attacker gained access to driver system. All deliveries on Route 7A now at risk.'
       }
-    });
+    };
+    trackImpact(attackId, impactData);
+    trackVectorSuccess(attackId, 'phishing', true, 85);
+    io.emit('impact:updated', impactData);
   } else {
     log(attackId, 'Phishing', `❌ FAILED: Driver ignored message (random: ${(random * 100).toFixed(1)}% >= ${(calibratedRate * 100).toFixed(0)}%)`, io, db);
+    trackVectorSuccess(attackId, 'phishing', false, 0);
     io.emit('graph:update', {
       attackId,
       currentNode: 'EXPLOIT_FAIL',
@@ -339,7 +384,7 @@ async function GPSAgent(attackId, attackConfig, io, db, config, log) {
     });
     
     // Update impact with route disruption
-    io.emit('impact:updated', {
+    const gpsImpactData = {
       attackId,
       packages: 3,
       patients: 2,
@@ -369,9 +414,13 @@ async function GPSAgent(attackId, attackConfig, io, db, config, log) {
         title: 'Route Deviation - Driver Lost',
         description: `Driver diverted ${distanceOffRoute} miles off route. Multiple deliveries delayed beyond critical windows.`
       }
-    });
+    };
+    trackImpact(attackId, gpsImpactData);
+    trackVectorSuccess(attackId, 'gps', true, 92);
+    io.emit('impact:updated', gpsImpactData);
   } else {
     log(attackId, 'GPS', '❌ GPS spoofing detected - manual override activated', io, db);
+    trackVectorSuccess(attackId, 'gps', false, 0);
     io.emit('graph:update', {
       attackId,
       currentNode: 'GPS_MANIP',
@@ -470,7 +519,7 @@ async function APIFloodingAgent(attackId, attackConfig, io, db, config, log) {
     });
     
     // Final impact update - system overwhelmed
-    io.emit('impact:updated', {
+    const apiImpactData = {
       attackId,
       packages: 5,
       patients: 4,
@@ -512,9 +561,13 @@ async function APIFloodingAgent(attackId, attackConfig, io, db, config, log) {
         title: 'Dispatch System Overload',
         description: `${alertCount} fake alerts flooded system. Real emergency buried. Dispatcher unable to respond to legitimate route deviation.`
       }
-    });
+    };
+    trackImpact(attackId, apiImpactData);
+    trackVectorSuccess(attackId, 'api', true, 78);
+    io.emit('impact:updated', apiImpactData);
   } else {
     log(attackId, 'API', '❌ API flooding detected - anomaly filter activated', io, db);
+    trackVectorSuccess(attackId, 'api', false, 0);
     io.emit('graph:update', {
       attackId,
       currentNode: 'API_EXPLOIT',
@@ -707,5 +760,5 @@ function updateImpact(attackId, agentName, io) {
   }
 }
 
-module.exports = { runAttack, triggerAgent };
+module.exports = { runAttack, triggerAgent, setMetricsTracker };
 
