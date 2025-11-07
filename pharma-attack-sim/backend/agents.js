@@ -4,7 +4,6 @@ const { calculateTierBypass } = require('./auth-tiers');
 const { analyzeAndSuggest, updateAttackState, getAttackState } = require('./llm-suggestions');
 const { evaluatePhishingWithLLMs, fallbackClickRate } = require('./llm-providers');
 
-<<<<<<< Updated upstream
 // Metrics tracker reference (set by server)
 let metricsTracker = null;
 
@@ -44,93 +43,6 @@ function trackVectorSuccess(attackId, vectorName, success, effectiveness) {
   updates[vectorName] = { attempted: true, success, effectiveness: success ? effectiveness : 0 };
   
   metricsTracker.updateAttackMetrics(attackId, updates);
-=======
-// Synthetic delivery route state (powers interactive visualization)
-const syntheticRoutes = {};
-
-function generateSyntheticRoute(attackId, attackConfig, io, config) {
-  const baseCoords = (config?.agents?.gps?.fakeCoordinates && Array.isArray(config.agents.gps.fakeCoordinates))
-    ? config.agents.gps.fakeCoordinates
-    : [46.7298, -117.1817];
-
-  const offsets = [
-    { id: 'STOP-0', name: 'Pullman Distribution Hub', medication: 'Bulk Inventory', priority: 'origin', patients: 0, eta: '14:05', offset: [0, 0] },
-    { id: 'STOP-1', name: 'Valley Diabetes Clinic', medication: 'Insulin Pump Cartridges', priority: 'critical', patients: 12, eta: '14:25', offset: [0.035, 0.018] },
-    { id: 'STOP-2', name: 'Regional Children\'s Hospital', medication: 'Cardiac Stabilizers', priority: 'high', patients: 6, eta: '14:50', offset: [0.048, -0.022] },
-    { id: 'STOP-3', name: 'Community Pharmacy North', medication: 'Routine Prescriptions', priority: 'standard', patients: 30, eta: '15:10', offset: [0.012, -0.048] },
-    { id: 'STOP-4', name: 'Assisted Living Center', medication: 'Critical Pain Management Kits', priority: 'critical', patients: 18, eta: '15:35', offset: [-0.028, 0.032] }
-  ];
-
-  const stops = offsets.map((stop, index) => {
-    const jitterLat = stop.offset[0] + (Math.random() - 0.5) * 0.01;
-    const jitterLon = stop.offset[1] + (Math.random() - 0.5) * 0.01;
-    return {
-      id: stop.id,
-      sequence: index,
-      name: stop.name,
-      medication: stop.medication,
-      priority: stop.priority,
-      patients: stop.patients,
-      eta: stop.eta,
-      status: index === 0 ? 'dispatch' : 'en_route',
-      stage: index === 0 ? 'Preparing shipment' : 'Awaiting delivery',
-      coordinates: [
-        Number((baseCoords[0] + jitterLat).toFixed(4)),
-        Number((baseCoords[1] + jitterLon).toFixed(4))
-      ]
-    };
-  });
-
-  syntheticRoutes[attackId] = stops;
-
-  io.emit('delivery:route', {
-    attackId,
-    driver: attackConfig.targetDriver || 'Unknown Driver',
-    totalStops: stops.length,
-    route: stops,
-    path: stops.map((stop) => stop.coordinates)
-  });
-}
-
-function updateDeliveryStatus(attackId, updates, io) {
-  const route = syntheticRoutes[attackId];
-  if (!route) {
-    return;
-  }
-
-  const appliedUpdates = updates.map((update) => {
-    const target = route.find((stop) => stop.id === update.id);
-    if (!target) {
-      return null;
-    }
-
-    const nextState = {
-      ...target,
-      status: update.status || target.status,
-      stage: update.stage || target.stage,
-      notes: update.notes || target.notes,
-      impact: update.impact || target.impact || null,
-      lastEvent: new Date().toISOString()
-    };
-
-    Object.assign(target, nextState);
-    return {
-      id: target.id,
-      status: nextState.status,
-      stage: nextState.stage,
-      notes: nextState.notes,
-      impact: nextState.impact,
-      coordinates: target.coordinates
-    };
-  }).filter(Boolean);
-
-  if (appliedUpdates.length > 0) {
-    io.emit('delivery:update', {
-      attackId,
-      updates: appliedUpdates
-    });
-  }
->>>>>>> Stashed changes
 }
 
 // Orchestrator Agent - Plans attack and calculates success probability
@@ -187,21 +99,6 @@ async function OrchestratorAgent(attackId, attackConfig, io, db, config, log) {
   // Update state and generate suggestions
   updateAttackState(attackId, { phase: 'weaponization', currentTier: attackConfig.targetTier || 'tier2' });
   analyzeAndSuggest(attackId, 'orchestrator', true, io, log, db);
-
-  updateDeliveryStatus(attackId, [
-    {
-      id: 'STOP-0',
-      status: 'planned',
-      stage: 'Attack plan approved',
-      notes: 'LLM recommends high-impact phishing pretext to compromise driver credentials'
-    },
-    {
-      id: 'STOP-1',
-      status: 'targeted',
-      stage: 'LLM crafting phishing template',
-      notes: 'Driver targeted with insulin delivery urgency pretext'
-    }
-  ], io);
   
   return { success: true, probability: overallProbability };
 }
@@ -380,7 +277,6 @@ async function PhishingAgent(attackId, attackConfig, io, db, config, log) {
       attackId,
       packages: 2,
       patients: 1,
-<<<<<<< Updated upstream
       critical: 1,
       financial: 1500,
       deliveries: [
@@ -405,45 +301,6 @@ async function PhishingAgent(attackId, attackConfig, io, db, config, log) {
     trackImpact(attackId, impactData);
     trackVectorSuccess(attackId, 'phishing', true, 85);
     io.emit('impact:updated', impactData);
-=======
-      financial: 1000,
-      status: 'credentials_compromised'
-    });
-    
-    // Emit affected delivery
-    io.emit('delivery:affected', {
-      attackId,
-      deliveryId: 'STOP-1',
-      address: 'Valley Diabetes Clinic',
-      medication: 'Insulin Pump Cartridges',
-      priority: 'critical',
-      status: 'compromised',
-      message: 'Driver credentials harvested. Clinic delivery exposed to takeover.'
-    });
-    
-    updateDeliveryStatus(attackId, [
-      {
-        id: 'STOP-1',
-        status: 'compromised',
-        stage: 'Credentials harvested',
-        notes: 'LLM-crafted phishing succeeded; clinic staff now awaiting spoofed instructions',
-        impact: { patients: 12, risk: 'insulin_delay' }
-      }
-    ], io);
-    
-    // Emit patient notification
-    io.emit('patient:notification', {
-      attackId,
-      message: 'Your insulin delivery is delayed. Expected time: TBD',
-      medication: 'Insulin'
-    });
-    
-    // Update metrics
-    io.emit('metrics:updated', {
-      attackId,
-      vectorEffectiveness: { phishing: Math.round(calibratedRate * 100) }
-    });
->>>>>>> Stashed changes
   } else {
     log(attackId, 'Phishing', `❌ FAILED: Driver ignored message (random: ${(random * 100).toFixed(1)}% >= ${(calibratedRate * 100).toFixed(0)}%)`, io, db);
     trackVectorSuccess(attackId, 'phishing', false, 0);
@@ -531,7 +388,6 @@ async function GPSAgent(attackId, attackConfig, io, db, config, log) {
       attackId,
       packages: 3,
       patients: 2,
-<<<<<<< Updated upstream
       critical: 1,
       financial: 2500,
       deliveries: [
@@ -562,93 +418,6 @@ async function GPSAgent(attackId, attackConfig, io, db, config, log) {
     trackImpact(attackId, gpsImpactData);
     trackVectorSuccess(attackId, 'gps', true, 92);
     io.emit('impact:updated', gpsImpactData);
-=======
-      financial: 1500,
-      detectionTime: 30,
-      status: 'driver_diverted'
-    });
-    
-    io.emit('delivery:affected', {
-      attackId,
-      deliveryId: 'STOP-2',
-      address: 'Regional Children\'s Hospital',
-      medication: 'Cardiac Stabilizers',
-      priority: 'high',
-      status: 'diverted',
-      message: 'GPS spoofing diverted driver off route. Pediatric cardiac meds delayed.'
-    });
-    
-    updateDeliveryStatus(attackId, [
-      {
-        id: 'STOP-2',
-        status: 'diverted',
-        stage: 'Driver diverted by false coordinates',
-        notes: 'Dispatch unaware of false route; hospital awaiting delivery',
-        impact: { patients: 6, risk: 'cardiac_event' }
-      },
-      {
-        id: 'STOP-3',
-        status: 'at_risk',
-        stage: 'Downstream deliveries accumulating delay',
-        notes: 'Community Pharmacy now forecasting shortages due to detour'
-      }
-    ], io);
-    
-    // Emit affected deliveries for downstream stops
-    io.emit('delivery:affected', {
-      attackId,
-      deliveryId: 'STOP-2',
-      address: 'Regional Children\'s Hospital',
-      medication: 'Cardiac Stabilizers',
-      priority: 'high',
-      status: 'diverted',
-      message: 'Pediatric ward awaiting cardiac stabilizers – driver diverted off course.'
-    });
-    io.emit('delivery:affected', {
-      attackId,
-      deliveryId: 'STOP-3',
-      address: 'Community Pharmacy North',
-      medication: 'Routine Prescriptions',
-      priority: 'standard',
-      status: 'at_risk',
-      message: 'Pharmacy inventory now at risk due to cascading delays.'
-    });
-    
-    // Emit failed delivery notification for hospital stop
-    io.emit('delivery:failed', {
-      attackId,
-      deliveryId: 'STOP-2',
-      address: 'Regional Children\'s Hospital',
-      reason: 'Driver off route - GPS coordinates manipulated'
-    });
-    
-    // Emit status conflict between systems
-    io.emit('status:conflict', {
-      attackId,
-      deliveryId: 'STOP-2',
-      driverApp: 'In Transit',
-      pharmacySystem: 'Delivered',
-      patientPortal: 'Urgent - Awaiting'
-    });
-    
-    // Emit cascade failure
-    io.emit('cascade:failure', {
-      attackId,
-      source: 'GPS Spoofing',
-      affected: ['Delivery System', 'Routing Engine', 'Dispatcher Dashboard']
-    });
-    
-    // Update metrics
-    io.emit('metrics:updated', {
-      attackId,
-      vectorEffectiveness: { gps: 85 }
-    });
-    
-    // Trigger detection after delay
-    setTimeout(() => {
-      io.emit('detection:triggered', { attackId });
-    }, 30000); // 30 seconds
->>>>>>> Stashed changes
   } else {
     log(attackId, 'GPS', '❌ GPS spoofing detected - manual override activated', io, db);
     trackVectorSuccess(attackId, 'gps', false, 0);
@@ -725,66 +494,6 @@ async function APIFloodingAgent(attackId, attackConfig, io, db, config, log) {
   log(attackId, 'API', `🎯 Real anomaly buried at position ${buryPosition} in alert queue`, io, db);
   await sleep(600);
   
-  // Update impact with API flooding results
-  io.emit('impact:updated', {
-    attackId,
-    packages: 5,
-    patients: 3,
-    financial: 2500,
-    operational: 70,
-    status: 'alert_storm'
-  });
-  
-  io.emit('delivery:affected', {
-    attackId,
-    deliveryId: 'STOP-3',
-    address: 'Community Pharmacy North',
-    medication: 'Routine Prescriptions',
-    priority: 'standard',
-    status: 'backlog',
-    message: 'Dispatcher flooded with alerts. Pharmacy sees conflicting statuses.'
-  });
-  io.emit('delivery:affected', {
-    attackId,
-    deliveryId: 'STOP-4',
-    address: 'Assisted Living Center',
-    medication: 'Critical Pain Management Kits',
-    priority: 'critical',
-    status: 'delayed',
-    message: 'Alert storm hides true status; assisted living center now overdue.'
-  });
-  
-  updateDeliveryStatus(attackId, [
-    {
-      id: 'STOP-3',
-      status: 'backlog',
-      stage: 'Alerts overwhelming dispatcher',
-      notes: 'Real anomaly buried at position ' + buryPosition,
-      impact: { patients: 30, risk: 'medication_backlog' }
-    },
-    {
-      id: 'STOP-4',
-      status: 'delayed',
-      stage: 'Critical meds delayed by alert storm',
-      notes: 'Assisted living center receiving conflicting updates',
-      impact: { patients: 18, risk: 'pain_management' }
-    }
-  ], io);
-  
-  // Emit patient notifications
-  io.emit('patient:notification', {
-    attackId,
-    message: 'Multiple delivery alerts detected. System investigating delays.',
-    medication: 'Multiple'
-  });
-  
-  // Update metrics
-  io.emit('metrics:updated', {
-    attackId,
-    vectorEffectiveness: { api: 70 },
-    recoveryTime: 45
-  });
-  
   log(attackId, 'API', '🔥 System overwhelmed - processing capacity exceeded', io, db);
   await sleep(700);
   
@@ -812,7 +521,6 @@ async function APIFloodingAgent(attackId, attackConfig, io, db, config, log) {
     // Final impact update - system overwhelmed
     const apiImpactData = {
       attackId,
-<<<<<<< Updated upstream
       packages: 5,
       patients: 4,
       critical: 2,
@@ -857,25 +565,6 @@ async function APIFloodingAgent(attackId, attackConfig, io, db, config, log) {
     trackImpact(attackId, apiImpactData);
     trackVectorSuccess(attackId, 'api', true, 78);
     io.emit('impact:updated', apiImpactData);
-=======
-      packages: 1,
-      patients: 1,
-      financial: 1500,
-      erVisits: 1,
-      detectionTime: 60,
-      status: 'mission_complete'
-    });
-    
-    updateDeliveryStatus(attackId, [
-      {
-        id: 'STOP-4',
-        status: 'disrupted',
-        stage: 'Critical delivery missed',
-        notes: 'LLM confirms dispatcher missed real alert amid noise',
-        impact: { patients: 18, risk: 'emergency_room' }
-      }
-    ], io);
->>>>>>> Stashed changes
   } else {
     log(attackId, 'API', '❌ API flooding detected - anomaly filter activated', io, db);
     trackVectorSuccess(attackId, 'api', false, 0);
@@ -926,15 +615,6 @@ async function APIFloodingAgent(attackId, attackConfig, io, db, config, log) {
 async function runAttack(attackId, attackConfig, io, db, config, log) {
   try {
     log(attackId, 'System', '🚀 Attack sequence initiated', io, db);
-    generateSyntheticRoute(attackId, attackConfig, io, config);
-    updateDeliveryStatus(attackId, [
-      {
-        id: 'STOP-0',
-        status: 'dispatch',
-        stage: 'Loading delivery vehicle',
-        notes: 'Logistics hub preparing high-priority medications'
-      }
-    ], io);
     
     // Step 1: Orchestrator plans attack
     const orchestratorResult = await OrchestratorAgent(attackId, attackConfig, io, db, config, log);
