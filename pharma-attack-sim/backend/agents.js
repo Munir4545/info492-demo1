@@ -231,12 +231,31 @@ async function PhishingAgent(attackId, attackConfig, io, db, config, log) {
       path: ['RECON', 'OSINT', 'TARGET_ANALYSIS', 'WEAPONIZE', 'PHISHING', 'LLM_VALIDATION', 'CRED_HARVEST', 'EXPLOIT_SUCCESS']
     });
     
-    // Update impact
+    // Update impact with affected deliveries
     io.emit('impact:updated', {
       attackId,
       packages: 2,
       patients: 1,
-      financial: 1000
+      critical: 1,
+      financial: 1500,
+      deliveries: [
+        {
+          medication: 'Insulin (Humalog)',
+          patient: 'Emma Thompson',
+          route: 'Route 7A',
+          priority: 'critical'
+        },
+        {
+          medication: 'Blood Pressure Medication',
+          patient: 'John Martinez',
+          route: 'Route 7A',
+          priority: 'urgent'
+        }
+      ],
+      cascadeEffect: {
+        title: 'Driver Credentials Compromised',
+        description: 'Attacker gained access to driver system. All deliveries on Route 7A now at risk.'
+      }
     });
   } else {
     log(attackId, 'Phishing', `❌ FAILED: Driver ignored message (random: ${(random * 100).toFixed(1)}% >= ${(calibratedRate * 100).toFixed(0)}%)`, io, db);
@@ -319,13 +338,37 @@ async function GPSAgent(attackId, attackConfig, io, db, config, log) {
       status: 'success'
     });
     
-    // Update impact
+    // Update impact with route disruption
     io.emit('impact:updated', {
       attackId,
       packages: 3,
       patients: 2,
-      financial: 1500,
-      detectionTime: 30
+      critical: 1,
+      financial: 2500,
+      deliveries: [
+        {
+          medication: 'Chemotherapy (Taxol)',
+          patient: 'Sarah Chen',
+          route: 'Route 7A',
+          priority: 'critical'
+        },
+        {
+          medication: 'Antibiotic (Amoxicillin)',
+          patient: 'Michael Roberts',
+          route: 'Route 7A',
+          priority: 'urgent'
+        },
+        {
+          medication: 'Pain Management (Oxycodone)',
+          patient: 'Lisa Anderson',
+          route: 'Route 7A',
+          priority: 'routine'
+        }
+      ],
+      cascadeEffect: {
+        title: 'Route Deviation - Driver Lost',
+        description: `Driver diverted ${distanceOffRoute} miles off route. Multiple deliveries delayed beyond critical windows.`
+      }
     });
   } else {
     log(attackId, 'GPS', '❌ GPS spoofing detected - manual override activated', io, db);
@@ -426,14 +469,49 @@ async function APIFloodingAgent(attackId, attackConfig, io, db, config, log) {
       status: 'complete'
     });
     
-    // Final impact update
+    // Final impact update - system overwhelmed
     io.emit('impact:updated', {
       attackId,
-      packages: 1,
-      patients: 1,
-      financial: 1500,
-      erVisits: 1,
-      detectionTime: 60
+      packages: 5,
+      patients: 4,
+      critical: 2,
+      financial: 5000,
+      deliveries: [
+        {
+          medication: 'Epinephrine (EpiPen)',
+          patient: 'David Park',
+          route: 'Route 7A',
+          priority: 'critical'
+        },
+        {
+          medication: 'Insulin (Lantus)',
+          patient: 'Maria Gonzalez',
+          route: 'Route 7A',
+          priority: 'critical'
+        },
+        {
+          medication: 'Heart Medication (Digoxin)',
+          patient: 'Robert Wilson',
+          route: 'Route 7A',
+          priority: 'urgent'
+        },
+        {
+          medication: 'Thyroid Medication',
+          patient: 'Jennifer Lee',
+          route: 'Route 7A',
+          priority: 'urgent'
+        },
+        {
+          medication: 'Antidepressant (Zoloft)',
+          patient: 'Thomas Brown',
+          route: 'Route 7A',
+          priority: 'routine'
+        }
+      ],
+      cascadeEffect: {
+        title: 'Dispatch System Overload',
+        description: `${alertCount} fake alerts flooded system. Real emergency buried. Dispatcher unable to respond to legitimate route deviation.`
+      }
     });
   } else {
     log(attackId, 'API', '❌ API flooding detected - anomaly filter activated', io, db);
