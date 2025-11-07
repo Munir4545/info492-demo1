@@ -14,7 +14,7 @@ const ProgressTooltip = ({ active, payload }: any) => {
   if (!active || !payload || !payload.length) return null;
   const point = payload[0].payload;
   return (
-    <div className="rounded bg-gray-900/90 px-3 py-2 text-xs text-gray-200 border border-gray-700 shadow-lg">
+    <div className="rounded bg-white px-3 py-2 text-xs text-text-primary border border-surface-border shadow">
       <div>Minute: {point.minute}</div>
       <div>Compromise: {point.compromise.toFixed(1)}%</div>
     </div>
@@ -56,15 +56,15 @@ const AttackMetricsPanel = () => {
   const detectionActual = simulation.detectionTime ? simulation.elapsedMinutes : null;
 
   return (
-    <div className="border border-gray-800 rounded-xl bg-gray-900/60 p-6 space-y-5">
-      <h2 className="text-lg font-semibold tracking-[0.2em] text-green-400 uppercase">Live Attack Metrics</h2>
+    <div className="border border-surface-border rounded-xl bg-white p-6 space-y-5">
+      <h2 className="text-lg font-semibold text-text-primary">Live Attack Metrics</h2>
 
       <div>
-        <div className="flex items-center justify-between text-xs uppercase tracking-[0.2em] text-gray-400 mb-2">
+        <div className="flex items-center justify-between text-xs text-text-secondary mb-2">
           <span>Deliveries Compromised</span>
           <span>{simulation.compromisePercentage.toFixed(1)}% / {simulation.targetCompromisePercentage}%</span>
         </div>
-        <div className="relative h-4 w-full rounded-full bg-gray-800 overflow-hidden">
+        <div className="relative h-3 w-full rounded-full bg-surface-bg overflow-hidden">
           <div className="absolute inset-0 flex">
             <div className="h-full" style={{ width: '10%', backgroundColor: 'rgba(34,197,94,0.2)' }} />
             <div className="h-full" style={{ width: '15%', backgroundColor: 'rgba(234,179,8,0.2)' }} />
@@ -76,8 +76,8 @@ const AttackMetricsPanel = () => {
             style={{ width: `${Math.min(simulation.compromisePercentage, 100)}%` }}
           />
         </div>
-        <p className="text-xs text-gray-400 mt-1">Status: {compromiseStatus.label}</p>
-        <div className="mt-2 grid grid-cols-4 gap-2 text-[10px] text-gray-500 uppercase tracking-[0.2em]">
+        <p className="text-xs text-text-secondary mt-1">Status: {compromiseStatus.label}</p>
+        <div className="mt-2 grid grid-cols-4 gap-2 text-[10px] text-text-secondary">
           <span>0-10% Green</span>
           <span>10-25% Yellow</span>
           <span>25-35% Orange</span>
@@ -85,21 +85,21 @@ const AttackMetricsPanel = () => {
         </div>
       </div>
 
-      <div className="grid gap-4 text-sm text-gray-300">
+      <div className="grid gap-4 text-sm text-text-primary">
         <div className="flex items-center justify-between">
           <span>Detection Timeline</span>
-          <span className="font-mono text-green-300">Expected T+{simulation.detectionExpectedAt}m</span>
+          <span className="font-mono text-brand-primary">Expected T+{simulation.detectionExpectedAt}m</span>
         </div>
-        <div className="flex items-center text-xs text-gray-400">
+        <div className="flex items-center text-xs text-text-secondary">
           <div className="flex-1">
-            First impact: <span className="text-green-300 font-mono">T+{firstImpact}m</span> • Detection
+            First impact: <span className="text-brand-primary font-mono">T+{firstImpact}m</span> • Detection
             {simulation.detectionTime ? (
-              <span className="text-red-300 font-mono"> T+{detectionActual}m</span>
+              <span className="text-red-600 font-mono"> T+{detectionActual}m</span>
             ) : (
-              <span className="text-yellow-300 font-mono"> pending</span>
+              <span className="text-amber-600 font-mono"> pending</span>
             )}
           </div>
-          <span className="font-mono text-green-300">Delay: {simulation.detectionDelay || 0}m</span>
+          <span className="font-mono text-brand-primary">Delay: {simulation.detectionDelay || 0}m</span>
         </div>
 
         <div className="flex items-center justify-between">
@@ -116,7 +116,7 @@ const AttackMetricsPanel = () => {
         </div>
       </div>
 
-      <div className="border border-gray-800 rounded-lg p-4 bg-gray-950/50">
+      <div className="border border-surface-border rounded-lg p-4 bg-surface-bg">
         <ResponsiveContainer width="100%" height={180}>
           <AreaChart data={timelineData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
             <defs>
@@ -135,36 +135,36 @@ const AttackMetricsPanel = () => {
             <Area type="monotone" dataKey="compromise" stroke="#22c55e" fill="url(#compromiseGradient)" strokeWidth={2} />
           </AreaChart>
         </ResponsiveContainer>
-        <div className="mt-2 flex justify-between text-[10px] uppercase tracking-[0.3em] text-gray-500">
+        <div className="mt-2 flex justify-between text-[10px] text-text-secondary">
           <span>T+0</span>
           <span>Detection Expected</span>
           <span>{simulation.detectionTime ? 'Detection Actual' : 'In Progress'}</span>
         </div>
       </div>
 
-      <div className="border border-gray-800 rounded-lg p-4 bg-gray-950/50 space-y-3">
-        <h3 className="text-xs uppercase tracking-[0.3em] text-gray-400">Vector Effectiveness</h3>
+      <div className="border border-surface-border rounded-lg p-4 bg-surface-bg space-y-3">
+        <h3 className="text-sm font-semibold text-text-primary">Vector Effectiveness</h3>
         {vectorRanking.length ? (
-          <ul className="space-y-2 text-sm text-gray-200">
+          <ul className="space-y-2 text-sm text-text-primary">
             {vectorRanking.map((vector, index) => (
               <li key={vector.id} className="flex items-center justify-between">
                 <span className="flex items-center gap-2">
                   <span className="font-mono text-[11px] text-gray-500">#{index + 1}</span>
                   {vector.name}
                 </span>
-                <span className="font-mono text-green-300">
+                <span className="font-mono text-brand-primary">
                   {vector.percent.toFixed(0)}%
                 </span>
               </li>
             ))}
           </ul>
         ) : (
-          <p className="text-xs text-gray-500">Activate vectors to populate effectiveness ranking.</p>
+          <p className="text-xs text-text-secondary">Activate vectors to populate effectiveness ranking.</p>
         )}
       </div>
 
-      <div className="border border-gray-800 rounded-lg p-4 bg-gray-950/50 text-xs text-gray-300 leading-5">
-        Recovery estimate: <span className="text-green-300 font-mono">{minRecovery}-{maxRecovery} minutes</span> based on current
+      <div className="border border-surface-border rounded-lg p-4 bg-surface-bg text-xs text-text-primary leading-5">
+        Recovery estimate: <span className="text-brand-primary font-mono">{minRecovery}-{maxRecovery} minutes</span> based on current
         compromise ({simulation.compromisePercentage.toFixed(1)}%), detection delay {simulation.detectionDelay || 0}m, and active vector stack
         ({simulation.activeVectors.length}).
       </div>

@@ -46,6 +46,7 @@ export interface AttackVector {
 export interface DriverProfile {
   id: string;
   name: string;
+  role?: 'DRIVER' | 'DISPATCHER';
   persona: 'TIME_PRESSURED' | 'OVERLOADED' | 'ROUTINE';
   vulnerabilityScore: number;
   characteristics: {
@@ -54,9 +55,27 @@ export interface DriverProfile {
     peakVulnerabilityWindow: string;
     trustLevel: 'low' | 'medium' | 'high';
     experienceYears: number;
+    averageDeliveriesPerDay?: number;
+    overtimeFrequency?: 'low' | 'medium' | 'high' | 'very_high';
+    workloadPressure?: 'low' | 'moderate' | 'high' | 'extreme';
+    systemRelianceScore?: number;
+    systemAccessLevel?: 'limited' | 'standard' | 'full';
+    alertProcessingRate?: 'low' | 'medium' | 'high' | 'very_high';
+    averageAlertVolume?: number;
   };
+  behavioralPatterns?: {
+    gpsReliance?: string;
+    alertResponse?: string;
+    communicationStyle?: string;
+    dashboardReliance?: string;
+    driverCommunication?: string;
+    stressIndicators?: string[];
+  };
+  exploitableVulnerabilities?: string[];
   activeDeliveries: string[];
   compromised: boolean;
+  driversManaged?: string[];
+  activeDeliveriesManaged?: number;
 }
 
 export interface LLMSuggestionMessage {
@@ -89,6 +108,7 @@ export interface AttackSimulationState {
   deployedVectors: string[];
   sessionId: string | null;
   paused: boolean;
+  detectionRisk: number;
 }
 
 export interface HumanIntervention {
@@ -100,6 +120,11 @@ export interface HumanIntervention {
     label: string;
   }>;
   createdAt: string;
+  recommendation?: {
+    summary: string;
+    actionId: string;
+    confidence?: 'low' | 'medium' | 'high';
+  };
 }
 
 export interface AttackControlState {
@@ -125,6 +150,7 @@ export interface AttackHistory {
     detectionDelay: number | null;
     cascadeEvents: number;
     vectorEffectiveness: Record<string, number>;
+    grade?: { grade: string; label: string };
   };
   timeline: TimelinePoint[];
   transcript: LLMSuggestionMessage[];

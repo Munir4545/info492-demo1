@@ -73,9 +73,9 @@ const DeliveryMap = () => {
   );
 
   return (
-    <div className="h-[520px] overflow-hidden rounded-lg border border-gray-800">
+    <div className="h-[520px] overflow-hidden rounded-lg border border-surface-border bg-white">
       <MapContainer center={center} zoom={11} scrollWheelZoom className="h-full w-full" preferCanvas>
-        <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
+        <TileLayer url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png" />
         <Polyline positions={i90Corridor} pathOptions={{ color: '#facc15', weight: 2, opacity: 0.6, dashArray: '6 8' }} />
         {polylines.map((points, idx) => (
           <Polyline key={`poly-${idx}`} positions={points} pathOptions={{ color: '#38bdf8', weight: 3, opacity: 0.6 }} />

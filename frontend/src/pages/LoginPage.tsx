@@ -1,12 +1,9 @@
 import { useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import MatrixRain from '../components/MatrixRain';
 
 const LoginPage = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [targetNetwork, setTargetNetwork] = useState('USPS Spokane');
-  const [attackDay, setAttackDay] = useState('1');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const { login } = useAuth();
@@ -25,107 +22,58 @@ const LoginPage = () => {
   };
 
   return (
-    <div className="relative min-h-screen bg-black text-matrix-green overflow-hidden">
-      <MatrixRain />
-      
-      <div className="relative z-10 flex items-center justify-center min-h-screen p-4">
-        <div className="w-full max-w-md">
-          {/* ASCII Art Logo */}
-          <div className="text-center mb-8 font-mono">
-            <pre className="text-matrix-green text-sm leading-tight">
-              {`
-╔═══════════════════════════════╗
-║   PHARMA ATTACK DEMO SYSTEM   ║
-║      CYBER OPERATIONS         ║
-╚═══════════════════════════════╝
-              `}
-            </pre>
+    <div className="min-h-screen flex items-center justify-center bg-surface-bg text-text-primary p-6">
+      <div className="w-full max-w-md bg-surface-card border border-surface-border rounded-xl shadow-sm p-8">
+        <div className="mb-6">
+          <h1 className="text-2xl font-semibold text-text-primary">Secure Access</h1>
+          <p className="text-sm text-text-secondary">Sign in with passkey to operate the simulation.</p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <div>
+            <label className="block text-sm text-text-secondary mb-1">Operator ID</label>
+            <input
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              className="w-full rounded-md border border-surface-border bg-white px-3 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-brand.primary/40"
+              placeholder="e.g. analyst01"
+              required
+            />
           </div>
 
-          {/* Login Form */}
-          <form
-            onSubmit={handleSubmit}
-            className="bg-black border-2 border-matrix-green p-8 shadow-[0_0_20px_rgba(0,255,0,0.3)]"
-          >
-            <div className="space-y-6">
-              <div>
-                <label className="block text-matrix-green mb-2 font-mono text-sm">
-                  OPERATOR ID
-                </label>
-                <input
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  className="w-full bg-black border border-matrix-green text-matrix-green px-4 py-2 font-mono focus:outline-none focus:border-matrix-green focus:ring-2 focus:ring-matrix-green focus:ring-opacity-50"
-                  placeholder="Enter operator ID"
-                  required
-                />
-              </div>
+          <div>
+            <label className="block text-sm text-text-secondary mb-1">Access code (optional)</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full rounded-md border border-surface-border bg-white px-3 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-brand.primary/40"
+              placeholder="Only used for fallbacks"
+            />
+          </div>
 
-              <div>
-                <label className="block text-matrix-green mb-2 font-mono text-sm">
-                  ACCESS CODE
-                </label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-black border border-matrix-green text-matrix-green px-4 py-2 font-mono focus:outline-none focus:border-matrix-green focus:ring-2 focus:ring-matrix-green focus:ring-opacity-50"
-                  placeholder="Enter access code"
-                  required
-                />
-              </div>
+          {error && (
+            <div className="text-red-600 text-sm border border-red-200 bg-red-50 rounded p-2">{error}</div>
+          )}
 
-              <div>
-                <label className="block text-matrix-green mb-2 font-mono text-sm">
-                  TARGET NETWORK
-                </label>
-                <select
-                  value={targetNetwork}
-                  onChange={(e) => setTargetNetwork(e.target.value)}
-                  className="w-full bg-black border border-matrix-green text-matrix-green px-4 py-2 font-mono focus:outline-none focus:border-matrix-green focus:ring-2 focus:ring-matrix-green focus:ring-opacity-50"
-                >
-                  <option value="USPS Spokane">USPS Spokane</option>
-                  <option value="USPS Pullman">USPS Pullman</option>
-                  <option value="USPS Spokane-Pullman">USPS Spokane-Pullman</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-matrix-green mb-2 font-mono text-sm">
-                  ATTACK DAY
-                </label>
-                <select
-                  value={attackDay}
-                  onChange={(e) => setAttackDay(e.target.value)}
-                  className="w-full bg-black border border-matrix-green text-matrix-green px-4 py-2 font-mono focus:outline-none focus:border-matrix-green focus:ring-2 focus:ring-matrix-green focus:ring-opacity-50"
-                >
-                  <option value="1">Day 1 (30% success rate)</option>
-                  <option value="2">Day 2 (45% success rate)</option>
-                  <option value="3">Day 3 (60% success rate)</option>
-                </select>
-              </div>
-
-              {error && (
-                <div className="text-red-500 font-mono text-sm border border-red-500 p-2">
-                  ERROR: {error}
-                </div>
-              )}
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-matrix-green text-black font-mono py-3 px-6 font-bold hover:bg-[#00cc00] transition-colors disabled:opacity-50 disabled:cursor-not-allowed border-2 border-matrix-green"
-              >
-                {loading ? 'AUTHENTICATING...' : 'ACCESS SYSTEM'}
-              </button>
-            </div>
-
-            <div className="mt-6 text-center text-matrix-green text-xs font-mono opacity-60">
-              Demo Credentials: demo / demo123
-            </div>
-          </form>
-        </div>
+          <div className="flex gap-3">
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex-1 rounded-md bg-brand-primary text-white py-2 px-4 hover:bg-blue-700 transition-colors disabled:opacity-50"
+            >
+              {loading ? 'Authenticating…' : 'Sign in with Passkey'}
+            </button>
+            <button
+              type="button"
+              onClick={async () => { setLoading(true); const r = await login('demo-user','demo'); setLoading(false); if(!r.success){setError(r.error||'Login failed');}}}
+              className="rounded-md border border-surface-border bg-white text-text-primary py-2 px-4 hover:bg-surface-bg"
+            >
+              Demo mode
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );

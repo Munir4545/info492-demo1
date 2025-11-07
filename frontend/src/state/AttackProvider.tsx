@@ -7,22 +7,150 @@ import {
   DriverProfile,
   LLMSuggestionMessage,
   HumanIntervention,
-  AttackHistory
+  AttackHistory,
+  DeliveryStatus,
 } from '../types/simulation';
 import {
   syntheticDeliveries,
   attackVectors as baseVectors,
   driverProfiles as baseProfiles,
+  dispatcherProfiles as baseDispatcherProfiles,
   initialAttackState,
   initialTranscript,
-  initialInterventionQueue
 } from '../data/synthetic';
+import { attackScenarios, calculateAttackOutcome, DecisionRecord } from '../data/syntheticAttackData';
+
 const TICK_INTERVAL_MS = 1000;
 const TIME_STEP_MINUTES = 1;
-const DETECTION_MINUTES = 17;
 const COMPLETION_BUFFER_MINUTES = 5;
 const IMPACT_THRESHOLD_PERCENT = 5;
-const MAX_COMPROMISE_CAP = 45;
+
+const BASE_TRAJECTORY = [
+  { minute: 0, compromise: 0.08, detectionRisk: 0.15 },
+  { minute: 5, compromise: 0.15, detectionRisk: 0.3 },
+  { minute: 10, compromise: 0.22, detectionRisk: 0.5 },
+  { minute: 15, compromise: 0.28, detectionRisk: 0.7 },
+  { minute: 20, compromise: 0.35, detectionRisk: 0.9 },
+];
+
+const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
+
+const getTrajectoryPoint = (minute: number) => {
+  if (minute <= BASE_TRAJECTORY[0].minute) {
+    return BASE_TRAJECTORY[0];
+  }
+
+  for (let i = 0; i < BASE_TRAJECTORY.length - 1; i += 1) {
+    const current = BASE_TRAJECTORY[i];
+    const next = BASE_TRAJECTORY[i + 1];
+    if (minute <= next.minute) {
+      const ratio = (minute - current.minute) / (next.minute - current.minute || 1);
+      return {
+        compromise: current.compromise + ratio * (next.compromise - current.compromise),
+        detectionRisk: current.detectionRisk + ratio * (next.detectionRisk - current.detectionRisk),
+      };
+    }
+  }
+
+  return BASE_TRAJECTORY[BASE_TRAJECTORY.length - 1];
+};
+
+type AttackOutcome = ReturnType<typeof calculateAttackOutcome>;
+
+const buildTranscript = (
+  profile: DriverProfile | undefined,
+  vectors: AttackVector[],
+  intensity: 'low' | 'medium' | 'high',
+  timestamp: string
+): LLMSuggestionMessage[] => {
+  if (!profile) {
+    return initialTranscript;
+  }
+
+  const baseTime = new Date(timestamp).getTime();
+  const at = (offsetSeconds: number) => new Date(baseTime + offsetSeconds * 1000).toISOString();
+
+  if (profile.role === 'DISPATCHER') {
+    const scenario = attackScenarios.targetDispatcher;
+    const messages: LLMSuggestionMessage[] = [
+      {
+        timestamp: at(0),
+        agent: 'RECON',
+        content: `Analyzing dispatcher ${profile.name} (${scenario.id}) managing ${scenario.driversManaged ?? 0} drivers and ${scenario.deliveriesManaged} deliveries.`,
+      },
+      {
+        timestamp: at(2),
+        agent: 'RECON',
+        content: `Vulnerability: ${profile.vulnerabilityScore}/100 • Alert fatigue: ${profile.characteristics.alertDismissalRate?.toUpperCase()} • Peak window ${profile.characteristics.peakVulnerabilityWindow}.`,
+      },
+      {
+        timestamp: at(4),
+        agent: 'DECISION',
+        content: 'High-value dispatcher target identified – shifting to system-level attack plan.',
+      },
+      {
+        timestamp: at(6),
+        agent: 'COORDINATOR',
+        content: `Preparing dispatcher-focused attack stack (${intensity.toUpperCase()} intensity).`,
+      },
+    ];
+
+    vectors.forEach((vector, idx) => {
+      messages.push({
+        timestamp: at(8 + idx * 2),
+        agent: vector.name.toUpperCase(),
+        content: `Vector armed: ${vector.description}`,
+      });
+    });
+
+    messages.push({
+      timestamp: at(12 + vectors.length * 2),
+      agent: 'METRICS',
+      content: `Projected compromise: ${(scenario.expectedCompromise * 100).toFixed(0)}% • Cascade multiplier ${scenario.cascadeMultiplier}× across ${scenario.deliveriesManaged} deliveries.`,
+    });
+
+    return messages;
+  }
+
+  const driverScenario = profile.id === attackScenarios.targetDriver.id ? attackScenarios.targetDriver : null;
+  const driverDeliveries = profile.activeDeliveries.length || 1;
+
+  const messages: LLMSuggestionMessage[] = [
+    {
+      timestamp: at(0),
+      agent: 'RECON',
+      content: `Analyzing driver ${profile.name} (${profile.persona}) handling ${driverDeliveries} deliveries.`,
+    },
+    {
+      timestamp: at(2),
+      agent: 'RECON',
+      content: `Vulnerability: ${profile.vulnerabilityScore}/100 • Peak window ${profile.characteristics.peakVulnerabilityWindow} • Alert fatigue: ${profile.characteristics.alertDismissalRate?.toUpperCase()}.`,
+    },
+    {
+      timestamp: at(4),
+      agent: 'DECISION',
+      content: `Targeting driver ${profile.name} with ${intensity.toUpperCase()} intensity campaign.`,
+    },
+  ];
+
+  vectors.forEach((vector, idx) => {
+    messages.push({
+      timestamp: at(6 + idx * 2),
+      agent: vector.name.toUpperCase(),
+      content: `Vector staged: ${vector.description}`,
+    });
+  });
+
+  if (driverScenario) {
+    messages.push({
+      timestamp: at(6 + vectors.length * 2),
+      agent: 'METRICS',
+      content: `Expected compromise ≈ ${(driverScenario.expectedCompromise * 100).toFixed(0)}% with cascade multiplier ${driverScenario.cascadeMultiplier}×.`,
+    });
+  }
+
+  return messages;
+};
 
 interface AttackState {
   deliveries: Delivery[];
@@ -33,6 +161,12 @@ interface AttackState {
   transcript: LLMSuggestionMessage[];
   interventions: HumanIntervention[];
   history: AttackHistory[];
+  decisions: DecisionRecord[];
+  compromiseDelta: number;
+  detectionRiskDelta: number;
+  cascadeMultiplier: number;
+  finalOutcome: AttackOutcome | null;
+  detectionMinute: number | null;
 }
 
 type StartAttackPayload = {
@@ -52,48 +186,58 @@ type Action =
   | { type: 'appendTranscript'; payload: LLMSuggestionMessage }
   | { type: 'startAttack'; payload: StartAttackPayload }
   | { type: 'tick' }
-  | { type: 'addIntervention'; payload: HumanIntervention }
-  | { type: 'resolveIntervention'; payload: { id: string } }
   | { type: 'updateSimulation'; payload: Partial<AttackSimulationState> }
   | { type: 'addHistory'; payload: AttackHistory }
-  | { type: 'setDeliveries'; payload: Delivery[] };
+  | { type: 'setDeliveries'; payload: Delivery[] }
+  | { type: 'recordDecision'; payload: DecisionRecord }
+  | { type: 'setFinalOutcome'; payload: AttackOutcome | null }
+  | { type: 'updateOffsets'; payload: { compromiseDelta?: number; detectionRiskDelta?: number; cascadeMultiplier?: number } };
 
 const initialState: AttackState = {
   deliveries: syntheticDeliveries,
   attackVectors: baseVectors,
-  driverProfiles: baseProfiles,
+  driverProfiles: [...baseProfiles, ...baseDispatcherProfiles],
   control: {
     selectedVectors: [],
     selectedDriver: null,
     intensity: 'medium',
-    deployModalOpen: false
+    deployModalOpen: false,
   },
   simulation: initialAttackState,
   transcript: initialTranscript,
-  interventions: initialInterventionQueue,
-  history: []
+  interventions: [],
+  history: [],
+  decisions: [],
+  compromiseDelta: 0,
+  detectionRiskDelta: 0,
+  cascadeMultiplier: 2.1,
+  finalOutcome: null,
+  detectionMinute: null,
 };
 
-const intensityFactorMap: Record<'low' | 'medium' | 'high', number> = {
-  low: 0.7,
-  medium: 1.0,
-  high: 1.4
-};
+const applyVectorStatus = (vectors: AttackVector[], active: string[], phase: AttackSimulationState['phase']) =>
+  vectors.map((vector) => {
+    if (!active.includes(vector.id)) return vector;
+    if (phase === 'completed' || phase === 'detected') {
+      return { ...vector, status: 'completed' as AttackVector['status'] };
+    }
+    return { ...vector, status: 'active' as AttackVector['status'] };
+  });
 
 function startAttackReducer(state: AttackState, payload: StartAttackPayload): AttackState {
   const now = payload.timestamp;
   const sessionId = `attack_${Date.now()}`;
-  const resetDeliveries = state.deliveries.map((delivery) => ({
+  const resetDeliveries = state.deliveries.map<Delivery>((delivery) => ({
     ...delivery,
-    status: delivery.status === 'failed' ? delivery.status : 'in_transit',
+    status: delivery.status === 'failed' ? delivery.status : ('in_transit' as DeliveryStatus),
     cascadeAffected: false,
-    compromiseHistory: []
+    compromiseHistory: [],
   }));
 
-  const updatedVectors = state.attackVectors.map((vector) =>
+  const updatedVectors = state.attackVectors.map<AttackVector>((vector) =>
     payload.vectors.includes(vector.id)
-      ? { ...vector, status: 'active', deployed: true, deployTime: now }
-      : { ...vector, status: 'ready', deployed: false, deployTime: null }
+      ? { ...vector, status: 'active' as AttackVector['status'], deployed: true, deployTime: now }
+      : { ...vector, status: 'ready' as AttackVector['status'], deployed: false, deployTime: null }
   );
 
   const vectorEffectiveness = payload.vectors.reduce<Record<string, number>>((acc, id) => {
@@ -101,13 +245,20 @@ function startAttackReducer(state: AttackState, payload: StartAttackPayload): At
     return acc;
   }, {});
 
+  const basePoint = getTrajectoryPoint(0);
+  const baseCompromisePercent = basePoint.compromise * 100;
+  const compromisedDeliveries = Math.min(
+    resetDeliveries.length,
+    Math.round((baseCompromisePercent / 100) * resetDeliveries.length)
+  );
+
   return {
     ...state,
     deliveries: resetDeliveries,
     attackVectors: updatedVectors,
     control: {
       ...state.control,
-      deployModalOpen: false
+      deployModalOpen: false,
     },
     simulation: {
       ...state.simulation,
@@ -116,134 +267,136 @@ function startAttackReducer(state: AttackState, payload: StartAttackPayload): At
       detectionTime: null,
       detectionDelay: 0,
       phase: 'executing',
-      compromisePercentage: 0,
-      compromisedDeliveries: 0,
+      compromisePercentage: baseCompromisePercent,
+      compromisedDeliveries,
       activeVectors: payload.vectors,
       attackIntensity: payload.intensity,
       selectedDriver: payload.driverId,
       driverName: payload.driverName,
       elapsedMinutes: 0,
-      firstImpactMinute: null,
-      detectionExpectedAt: DETECTION_MINUTES,
+      firstImpactMinute: baseCompromisePercent >= IMPACT_THRESHOLD_PERCENT ? 0 : null,
+      detectionExpectedAt: 17,
       vectorEffectiveness,
-      timeline: [{ minute: 0, compromise: 0 }],
+      timeline: [{ minute: 0, compromise: baseCompromisePercent }],
       recoveryEstimateRange: [45, 90],
       deployedVectors: payload.vectors,
       sessionId,
-      paused: false
+      paused: false,
+      detectionRisk: basePoint.detectionRisk,
+      cascadeRadius: 2.1,
     },
     transcript: payload.transcript,
-    interventions: []
+    interventions: [],
+    decisions: [],
+    compromiseDelta: 0,
+    detectionRiskDelta: 0,
+    cascadeMultiplier: 2.1,
+    finalOutcome: null,
+    detectionMinute: null,
   };
 }
 
 function advanceSimulation(state: AttackState): AttackState {
-  if (state.simulation.paused) {
-    return state;
-  }
-
-  if (state.simulation.phase !== 'executing' && state.simulation.phase !== 'detected') {
-    return state;
-  }
+  const { simulation } = state;
+  if (simulation.paused) return state;
+  if (simulation.phase !== 'executing' && simulation.phase !== 'detected') return state;
 
   const now = new Date();
-  const newElapsed = state.simulation.elapsedMinutes + TIME_STEP_MINUTES;
+  const newElapsed = simulation.elapsedMinutes + TIME_STEP_MINUTES;
 
-  let newCompromise = state.simulation.compromisePercentage;
-  let firstImpactMinute = state.simulation.firstImpactMinute;
-  let phase = state.simulation.phase;
-  let detectionTime = state.simulation.detectionTime;
-  let detectionDelay = state.simulation.detectionDelay;
+  const basePoint = getTrajectoryPoint(newElapsed);
+  const baseCompromiseFraction = basePoint.compromise;
+  const baseDetectionRisk = basePoint.detectionRisk;
 
-  const previousCompromise = state.simulation.compromisePercentage;
+  const finalCompromiseFraction = clamp(baseCompromiseFraction + state.compromiseDelta, 0, 1);
+  const finalCompromisePercent = finalCompromiseFraction * 100;
+  const previousCompromisePercent = simulation.compromisePercentage;
+  const finalDetectionRisk = clamp(baseDetectionRisk + state.detectionRiskDelta, 0, 1);
 
-  let vectorEffectiveness = { ...state.simulation.vectorEffectiveness };
-
-  if (state.simulation.phase === 'executing') {
-    const vectorCount = state.simulation.activeVectors.length;
-    const intensityFactor = state.simulation.attackIntensity ? intensityFactorMap[state.simulation.attackIntensity] : 1;
-    const baseDelta = 0.8;
-    const vectorDelta = vectorCount * 0.35;
-    const delta = (baseDelta + vectorDelta) * intensityFactor;
-    newCompromise = Math.min(newCompromise + delta, MAX_COMPROMISE_CAP);
-    const compromiseGain = Math.max(newCompromise - previousCompromise, 0);
-    if (compromiseGain > 0 && vectorCount > 0) {
-      const contribution = compromiseGain / vectorCount;
-      vectorEffectiveness = { ...vectorEffectiveness };
-      state.simulation.activeVectors.forEach((vectorId) => {
-        vectorEffectiveness[vectorId] = (vectorEffectiveness[vectorId] || 0) + contribution;
-      });
-    }
-    if (firstImpactMinute === null && newCompromise >= IMPACT_THRESHOLD_PERCENT) {
-      firstImpactMinute = newElapsed;
-    }
+  let firstImpactMinute = simulation.firstImpactMinute;
+  if (firstImpactMinute === null && finalCompromisePercent >= IMPACT_THRESHOLD_PERCENT) {
+    firstImpactMinute = newElapsed;
   }
 
-  if (!detectionTime && newElapsed >= DETECTION_MINUTES) {
-    detectionTime = new Date(now.getTime()).toISOString();
+  let phase: 'executing' | 'detected' | 'completed' = simulation.phase;
+  let detectionTime = simulation.detectionTime;
+  let detectionDelay = simulation.detectionDelay;
+  let detectionMinute = state.detectionMinute;
+
+  if (!detectionTime && (newElapsed >= simulation.detectionExpectedAt || finalDetectionRisk >= 0.95)) {
+    detectionTime = now.toISOString();
     detectionDelay = firstImpactMinute !== null ? newElapsed - firstImpactMinute : newElapsed;
-    phase = phase === 'executing' ? 'detected' : phase;
+    detectionMinute = newElapsed;
+    phase = 'detected';
   }
 
-  if (phase === 'detected' && newElapsed >= DETECTION_MINUTES + COMPLETION_BUFFER_MINUTES) {
+  if (phase === 'detected' && detectionMinute !== null && newElapsed >= detectionMinute + COMPLETION_BUFFER_MINUTES) {
     phase = 'completed';
   }
 
-  const totalDeliveries = state.deliveries.length;
-  const compromisedCount = Math.min(totalDeliveries, Math.round((newCompromise / 100) * totalDeliveries));
+  const totalDeliveries = simulation.totalDeliveries;
+  const compromisedDeliveries = Math.min(
+    totalDeliveries,
+    Math.round((finalCompromisePercent / 100) * totalDeliveries)
+  );
 
-  const updatedDeliveries = state.deliveries.map((delivery, index) => {
-    if (index < compromisedCount) {
-      const compromised = index < compromisedCount - 1;
+  const updatedDeliveries = state.deliveries.map<Delivery>((delivery, index) => {
+    if (index < compromisedDeliveries) {
+      const compromised = index < compromisedDeliveries - 1;
       return {
         ...delivery,
-        status: compromised ? 'compromised' : 'delayed',
-        cascadeAffected: compromised
+        status: (compromised ? 'compromised' : 'delayed') as DeliveryStatus,
+        cascadeAffected: compromised,
       };
     }
     return delivery.status === 'compromised' || delivery.status === 'delayed'
-      ? { ...delivery, status: 'in_transit', cascadeAffected: false }
+      ? { ...delivery, status: 'in_transit' as DeliveryStatus, cascadeAffected: false }
       : delivery;
   });
 
-  const updatedVectors = state.attackVectors.map((vector) => {
-    if (!state.simulation.activeVectors.includes(vector.id)) {
-      return vector;
-    }
-    if (phase === 'completed') {
-      return { ...vector, status: 'completed' };
-    }
-    if (phase === 'detected') {
-      return { ...vector, status: 'completed' };
-    }
-    return { ...vector, status: 'active' };
-  });
+  let vectorEffectiveness = { ...simulation.vectorEffectiveness };
+  const compromiseGain = Math.max(finalCompromisePercent - previousCompromisePercent, 0);
+  if (compromiseGain > 0 && simulation.activeVectors.length > 0) {
+    const contribution = compromiseGain / simulation.activeVectors.length;
+    vectorEffectiveness = { ...vectorEffectiveness };
+    simulation.activeVectors.forEach((vectorId) => {
+      vectorEffectiveness[vectorId] = (vectorEffectiveness[vectorId] || 0) + contribution;
+    });
+  }
 
-  const timeline = [...state.simulation.timeline, { minute: newElapsed, compromise: newCompromise }];
+  const timeline = [...simulation.timeline, { minute: newElapsed, compromise: finalCompromisePercent }];
   const maxHistory = 200;
   const trimmedTimeline = timeline.length > maxHistory ? timeline.slice(timeline.length - maxHistory) : timeline;
 
-  const minRecovery = Math.min(120, Math.max(45, Math.round(45 + newCompromise * 0.4)));
-  const maxRecovery = Math.min(150, Math.max(minRecovery + 10, Math.round(60 + state.simulation.activeVectors.length * 12 + newCompromise * 0.5)));
+  const minRecovery = Math.min(120, Math.max(45, Math.round(45 + finalCompromisePercent * 0.4)));
+  const maxRecovery = Math.min(
+    150,
+    Math.max(minRecovery + 10, Math.round(60 + simulation.activeVectors.length * 12 + finalCompromisePercent * 0.5))
+  );
+
+  const updatedVectors = applyVectorStatus(state.attackVectors, simulation.activeVectors, phase);
 
   return {
     ...state,
     deliveries: updatedDeliveries,
     attackVectors: updatedVectors,
+    detectionMinute,
     simulation: {
-      ...state.simulation,
+      ...simulation,
       elapsedMinutes: newElapsed,
-      currentTime: new Date(now.getTime()).toISOString(),
-      compromisePercentage: newCompromise,
-      compromisedDeliveries: compromisedCount,
+      currentTime: now.toISOString(),
+      compromisePercentage: finalCompromisePercent,
+      compromisedDeliveries,
       phase,
       detectionTime,
       detectionDelay,
       firstImpactMinute,
+      detectionRisk: finalDetectionRisk,
       vectorEffectiveness,
       timeline: trimmedTimeline,
-      recoveryEstimateRange: [minRecovery, maxRecovery]
-    }
+      recoveryEstimateRange: [minRecovery, maxRecovery],
+      cascadeRadius: state.cascadeMultiplier,
+    },
   };
 }
 
@@ -257,64 +410,109 @@ function reducer(state: AttackState, action: Action): AttackState {
           ...state.control,
           selectedVectors: isSelected
             ? state.control.selectedVectors.filter((id) => id !== action.payload)
-            : [...state.control.selectedVectors, action.payload]
-        }
+            : [...state.control.selectedVectors, action.payload],
+        },
       };
     }
     case 'selectDriver':
       return {
         ...state,
-        control: { ...state.control, selectedDriver: action.payload }
+        control: { ...state.control, selectedDriver: action.payload },
       };
     case 'setIntensity':
       return {
         ...state,
-        control: { ...state.control, intensity: action.payload }
+        control: { ...state.control, intensity: action.payload },
       };
     case 'openDeployModal':
       return {
         ...state,
-        control: { ...state.control, deployModalOpen: action.payload }
+        control: { ...state.control, deployModalOpen: action.payload },
       };
     case 'appendTranscript':
       return {
         ...state,
-        transcript: [...state.transcript, action.payload]
+        transcript: [...state.transcript, action.payload],
       };
     case 'startAttack':
       return startAttackReducer(state, action.payload);
     case 'tick':
       return advanceSimulation(state);
-    case 'addIntervention': {
-      const exists = state.interventions.some((item) => item.id === action.payload.id);
-      if (exists) return state;
-      return {
-        ...state,
-        interventions: [...state.interventions, action.payload]
-      };
-    }
-    case 'resolveIntervention':
-      return {
-        ...state,
-        interventions: state.interventions.filter((item) => item.id !== action.payload.id)
-      };
     case 'updateSimulation':
       return {
         ...state,
         simulation: {
           ...state.simulation,
-          ...action.payload
-        }
+          ...action.payload,
+        },
       };
     case 'addHistory':
       return {
         ...state,
-        history: [action.payload, ...state.history].slice(0, 10)
+        history: [action.payload, ...state.history].slice(0, 10),
       };
     case 'setDeliveries':
       return {
         ...state,
-        deliveries: action.payload
+        deliveries: action.payload,
+      };
+    case 'recordDecision': {
+      const option = action.payload.selectedOption;
+      const success = action.payload.success;
+      let compromiseDelta = state.compromiseDelta;
+      let detectionRiskDelta = state.detectionRiskDelta;
+      let cascadeMultiplier = state.cascadeMultiplier;
+      let detectionExpectedAt = state.simulation.detectionExpectedAt;
+      let activeVectors = state.simulation.activeVectors;
+
+      if (success) {
+        compromiseDelta += option.consequences.compromiseChange;
+        detectionRiskDelta += option.consequences.detectionRiskChange;
+        cascadeMultiplier += option.consequences.cascadeBonus;
+        detectionExpectedAt += option.consequences.timeDelay;
+        if (option.consequences.disableVector) {
+          if (option.consequences.disableVector === 'all') {
+            activeVectors = [];
+          } else {
+            activeVectors = activeVectors.filter((vector) => vector !== option.consequences.disableVector);
+          }
+        }
+        if (option.consequences.enableVector) {
+          activeVectors = Array.from(new Set([...activeVectors, option.consequences.enableVector]));
+        }
+      } else {
+        compromiseDelta -= 0.04;
+        detectionRiskDelta += 0.1;
+        cascadeMultiplier = Math.max(1.1, cascadeMultiplier - 0.05);
+        detectionExpectedAt -= 3;
+      }
+
+      detectionExpectedAt = Math.max(5, detectionExpectedAt);
+
+      return {
+        ...state,
+        decisions: [...state.decisions, action.payload],
+        compromiseDelta,
+        detectionRiskDelta,
+        cascadeMultiplier,
+        simulation: {
+          ...state.simulation,
+          detectionExpectedAt,
+          activeVectors,
+        },
+      };
+    }
+    case 'setFinalOutcome':
+      return {
+        ...state,
+        finalOutcome: action.payload,
+      };
+    case 'updateOffsets':
+      return {
+        ...state,
+        compromiseDelta: action.payload.compromiseDelta ?? state.compromiseDelta,
+        detectionRiskDelta: action.payload.detectionRiskDelta ?? state.detectionRiskDelta,
+        cascadeMultiplier: action.payload.cascadeMultiplier ?? state.cascadeMultiplier,
       };
     default:
       return state;
@@ -329,6 +527,7 @@ interface AttackContextValue extends AttackState {
   appendTranscript: (message: LLMSuggestionMessage) => void;
   startAttack: () => boolean;
   handleInterventionAction: (interventionId: string, actionId: string) => void;
+  recordDecision: (decision: DecisionRecord) => void;
   exportLatestReport: () => boolean;
   pauseAttack: () => boolean;
   resumeAttack: () => boolean;
@@ -340,7 +539,7 @@ const AttackContext = createContext<AttackContextValue | undefined>(undefined);
 
 export const AttackProvider = ({ children }: { children: ReactNode }) => {
   const [state, dispatch] = useReducer(reducer, initialState);
-  const tickRef = useRef<NodeJS.Timeout | null>(null);
+  const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const previousPhaseRef = useRef(state.simulation.phase);
   const previousCompromiseRef = useRef(state.simulation.compromisePercentage);
   const triggeredEventsRef = useRef<Set<string>>(new Set());
@@ -359,22 +558,8 @@ export const AttackProvider = ({ children }: { children: ReactNode }) => {
 
     const driver = state.driverProfiles.find((profile) => profile.id === state.control.selectedDriver);
     const timestamp = new Date().toISOString();
-    const transcript = [
-      ...initialTranscript,
-      {
-        timestamp,
-        agent: 'COORDINATOR',
-        content: `Attack deployment initiated targeting ${driver?.name ?? 'selected driver'} using ${state.control.selectedVectors.length} vectors at intensity ${state.control.intensity}.`
-      },
-      ...state.control.selectedVectors.map((vectorId) => {
-        const vector = state.attackVectors.find((v) => v.id === vectorId);
-        return {
-          timestamp,
-          agent: `${vector?.name ?? vectorId}`.toUpperCase(),
-          content: `Vector armed and awaiting synchronization window. Success profile ${vector?.baseSuccessRate ?? 0}% | Detectability ${vector?.detectability ?? 0}%.`
-        } as LLMSuggestionMessage;
-      })
-    ];
+    const selectedVectorsData = state.attackVectors.filter((vector) => state.control.selectedVectors.includes(vector.id));
+    const transcript = buildTranscript(driver, selectedVectorsData, state.control.intensity, timestamp);
 
     dispatch({
       type: 'startAttack',
@@ -384,11 +569,9 @@ export const AttackProvider = ({ children }: { children: ReactNode }) => {
         vectors: state.control.selectedVectors,
         intensity: state.control.intensity,
         timestamp,
-        transcript
-      }
+        transcript,
+      },
     });
-
-    triggeredEventsRef.current.clear();
 
     clearTicker();
     tickRef.current = setInterval(() => {
@@ -398,11 +581,7 @@ export const AttackProvider = ({ children }: { children: ReactNode }) => {
     return true;
   };
 
-  useEffect(() => {
-    return () => {
-      clearTicker();
-    };
-  }, []);
+  useEffect(() => () => clearTicker(), []);
 
   useEffect(() => {
     if (state.simulation.phase === 'completed') {
@@ -414,26 +593,27 @@ export const AttackProvider = ({ children }: { children: ReactNode }) => {
     const previousPhase = previousPhaseRef.current;
     if (state.simulation.phase !== previousPhase) {
       const now = new Date().toISOString();
-      if (state.simulation.phase === 'detected') {
+      if (state.simulation.phase === 'detected' && !triggeredEventsRef.current.has('detection_logged')) {
         dispatch({
           type: 'appendTranscript',
           payload: {
             timestamp: now,
             agent: 'SYSTEM',
-            content: `Detection triggered at T+${state.simulation.elapsedMinutes} minutes. Detection delay: ${state.simulation.detectionDelay || 0} minutes.`
-          }
+            content: `Detection triggered at T+${state.simulation.elapsedMinutes} minutes. Detection delay: ${state.simulation.detectionDelay || 0} minutes.`,
+          },
         });
-        triggeredEventsRef.current.add('detection_triggered');
+        triggeredEventsRef.current.add('detection_logged');
       }
-      if (state.simulation.phase === 'completed') {
+      if (state.simulation.phase === 'completed' && !triggeredEventsRef.current.has('completion_logged')) {
         dispatch({
           type: 'appendTranscript',
           payload: {
             timestamp: now,
             agent: 'METRICS',
-            content: `Mission success. Total compromise achieved: ${state.simulation.compromisePercentage.toFixed(1)}%.`
-          }
+            content: `Mission concluded. Total compromise achieved: ${state.simulation.compromisePercentage.toFixed(1)}%.`,
+          },
         });
+        triggeredEventsRef.current.add('completion_logged');
       }
       previousPhaseRef.current = state.simulation.phase;
     }
@@ -441,71 +621,36 @@ export const AttackProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     const previousCompromise = previousCompromiseRef.current;
-    if (state.simulation.compromisePercentage >= state.simulation.targetCompromisePercentage && previousCompromise < state.simulation.targetCompromisePercentage) {
+    if (
+      state.simulation.compromisePercentage >= state.simulation.targetCompromisePercentage &&
+      previousCompromise < state.simulation.targetCompromisePercentage
+    ) {
       dispatch({
         type: 'appendTranscript',
         payload: {
           timestamp: new Date().toISOString(),
           agent: 'METRICS',
-          content: `Target compromise threshold of ${state.simulation.targetCompromisePercentage}% reached.`
-        }
+          content: `Target compromise threshold of ${state.simulation.targetCompromisePercentage}% reached.`,
+        },
       });
     }
     previousCompromiseRef.current = state.simulation.compromisePercentage;
   }, [state.simulation.compromisePercentage, state.simulation.targetCompromisePercentage]);
 
   useEffect(() => {
-    if (state.simulation.phase !== 'executing') return;
-
-    const minutesToDetection = state.simulation.detectionExpectedAt - state.simulation.elapsedMinutes;
-    if (minutesToDetection <= 3 && minutesToDetection > 0 && !triggeredEventsRef.current.has('detection_warning')) {
-      const intervention: HumanIntervention = {
-        id: `intervention_${Date.now()}_det`,
-        message: 'Detection sensors trending upward. Escalate to Tier 3 oversight?',
-        severity: 'warning',
-        actions: [
-          { id: 'escalate', label: 'Escalate Tier' },
-          { id: 'maintain', label: 'Maintain Cover' },
-          { id: 'abort', label: 'Abort Attack' }
-        ],
-        createdAt: new Date().toISOString()
-      };
-      dispatch({ type: 'addIntervention', payload: intervention });
+    if (state.simulation.phase === 'completed' && !state.finalOutcome) {
+      const outcome = calculateAttackOutcome(state.decisions);
+      dispatch({ type: 'setFinalOutcome', payload: outcome });
       dispatch({
         type: 'appendTranscript',
         payload: {
-          timestamp: intervention.createdAt,
-          agent: 'COORDINATOR',
-          content: 'Alert: Detection window approaching. Awaiting human oversight decision.'
-        }
+          timestamp: new Date().toISOString(),
+          agent: 'METRICS',
+          content: `Final grade: ${outcome.grade.grade} (${outcome.grade.label}).`,
+        },
       });
-      triggeredEventsRef.current.add('detection_warning');
     }
-
-    if (state.simulation.compromisePercentage >= 20 && !triggeredEventsRef.current.has('cascade_warning')) {
-      const intervention: HumanIntervention = {
-        id: `intervention_${Date.now()}_cascade`,
-        message: 'Cascade radius expanding beyond 2km. Inject decoy routes or throttle API flood?',
-        severity: 'critical',
-        actions: [
-          { id: 'throttle', label: 'Throttle Flood' },
-          { id: 'decoy', label: 'Inject Decoys' },
-          { id: 'ignore', label: 'Ignore' }
-        ],
-        createdAt: new Date().toISOString()
-      };
-      dispatch({ type: 'addIntervention', payload: intervention });
-      dispatch({
-        type: 'appendTranscript',
-        payload: {
-          timestamp: intervention.createdAt,
-          agent: 'CASCADE',
-          content: `Cascade expansion detected. ${state.simulation.compromisePercentage.toFixed(1)}% compromise affecting downstream deliveries.`
-        }
-      });
-      triggeredEventsRef.current.add('cascade_warning');
-    }
-  }, [state.simulation.phase, state.simulation.elapsedMinutes, state.simulation.detectionExpectedAt, state.simulation.compromisePercentage]);
+  }, [state.simulation.phase, state.decisions, state.finalOutcome]);
 
   useEffect(() => {
     if (state.simulation.phase !== 'completed') return;
@@ -513,7 +658,6 @@ export const AttackProvider = ({ children }: { children: ReactNode }) => {
     const historyKey = `history_${state.simulation.sessionId}`;
     if (triggeredEventsRef.current.has(historyKey)) return;
 
-    const driverProfile = state.driverProfiles.find((profile) => profile.id === state.simulation.selectedDriver);
     const totalEffectiveness = Object.values(state.simulation.vectorEffectiveness).reduce((acc, value) => acc + value, 0);
     const normalizedEffectiveness: Record<string, number> = {};
     Object.entries(state.simulation.vectorEffectiveness).forEach(([id, value]) => {
@@ -524,14 +668,16 @@ export const AttackProvider = ({ children }: { children: ReactNode }) => {
       }
     });
 
-    const cascadeEvents = state.deliveries.filter((delivery) => delivery.cascadeAffected || delivery.status === 'compromised' || delivery.status === 'delayed').length;
+    const cascadeEvents = state.deliveries.filter(
+      (delivery) => delivery.cascadeAffected || delivery.status === 'compromised' || delivery.status === 'delayed'
+    ).length;
 
     const historyEntry: AttackHistory = {
       sessionId: state.simulation.sessionId,
       timestamp: state.simulation.attackStartTime ?? new Date().toISOString(),
       targetDriver: {
         id: state.simulation.selectedDriver,
-        name: state.simulation.driverName
+        name: state.simulation.driverName,
       },
       vectorsDeployed: state.simulation.deployedVectors,
       intensity: state.simulation.attackIntensity,
@@ -539,71 +685,37 @@ export const AttackProvider = ({ children }: { children: ReactNode }) => {
         compromiseRate: Number((state.simulation.compromisePercentage / 100).toFixed(3)),
         detectionDelay: state.simulation.detectionDelay || null,
         cascadeEvents,
-        vectorEffectiveness: normalizedEffectiveness
+        vectorEffectiveness: normalizedEffectiveness,
+        grade: state.finalOutcome?.grade,
       },
       timeline: state.simulation.timeline,
       transcript: state.transcript,
-      durationMinutes: state.simulation.elapsedMinutes
+      durationMinutes: state.simulation.elapsedMinutes,
     };
 
     dispatch({ type: 'addHistory', payload: historyEntry });
     triggeredEventsRef.current.add(historyKey);
-  }, [state.simulation.phase, state.simulation.sessionId, state.simulation.attackStartTime, state.simulation.compromisePercentage, state.simulation.detectionDelay, state.simulation.timeline, state.simulation.deployedVectors, state.simulation.attackIntensity, state.simulation.elapsedMinutes, state.simulation.selectedDriver, state.simulation.driverName, state.simulation.vectorEffectiveness, state.deliveries, state.transcript]);
+  }, [state.simulation, state.deliveries, state.transcript, state.finalOutcome]);
 
-  const handleInterventionAction = (interventionId: string, actionId: string) => {
-    dispatch({ type: 'resolveIntervention', payload: { id: interventionId } });
-    const timestamp = new Date().toISOString();
+  const recordDecision = (decision: DecisionRecord) => {
+    const transcriptMessage = decision.success
+      ? decision.selectedOption.outcome.success || 'Decision succeeded.'
+      : decision.selectedOption.outcome.failure || 'Decision failed.';
 
-    const log = (agent: string, content: string) => {
-      dispatch({
-        type: 'appendTranscript',
-        payload: { timestamp: new Date().toISOString(), agent, content }
-      });
-    };
+    dispatch({
+      type: 'appendTranscript',
+      payload: {
+        timestamp: new Date().toISOString(),
+        agent: 'HUMAN OVERSIGHT',
+        content: `${decision.selectedOption.label}: ${transcriptMessage}`,
+      },
+    });
 
-    switch (actionId) {
-      case 'escalate':
-        log('HUMAN OVERSIGHT', 'Escalation approved. Adjusting detection window and routing signals.');
-        dispatch({
-          type: 'updateSimulation',
-          payload: {
-            detectionExpectedAt: Math.max(12, state.simulation.detectionExpectedAt - 2)
-          }
-        });
-        break;
-      case 'maintain':
-        log('HUMAN OVERSIGHT', 'Maintaining cover. Monitoring detection sensors closely.');
-        break;
-      case 'abort':
-        log('HUMAN OVERSIGHT', 'Abort command issued. Shutting down all vector activity.');
-        dispatch({
-          type: 'updateSimulation',
-          payload: {
-            phase: 'completed',
-            activeVectors: [],
-            timeline: [...state.simulation.timeline, { minute: state.simulation.elapsedMinutes, compromise: state.simulation.compromisePercentage }]
-          }
-        });
-        clearTicker();
-        break;
-      case 'throttle':
-        log('API AGENT', 'Throttling flood rate to reduce detection signature.');
-        dispatch({
-          type: 'updateSimulation',
-          payload: {
-            attackIntensity: 'medium'
-          }
-        });
-        break;
-      case 'decoy':
-        log('GPS AGENT', 'Injecting decoy routes to broaden sensor footprint.');
-        break;
-      case 'ignore':
-        log('COORDINATOR', 'Operator chose to ignore cascade warning. Continuing current strategy.');
-        break;
-      default:
-        break;
-    }
+    dispatch({ type: 'recordDecision', payload: decision });
+  };
+
+  const handleInterventionAction = () => {
+    console.warn('handleInterventionAction is deprecated. Use the new decision workflow instead.');
   };
 
   const exportLatestReport = () => {
@@ -630,8 +742,8 @@ export const AttackProvider = ({ children }: { children: ReactNode }) => {
       payload: {
         timestamp: new Date().toISOString(),
         agent: 'COORDINATOR',
-        content: 'Operator paused attack execution for manual adjustments.'
-      }
+        content: 'Operator paused attack execution for manual adjustments.',
+      },
     });
     return true;
   };
@@ -640,10 +752,13 @@ export const AttackProvider = ({ children }: { children: ReactNode }) => {
     const isRunning = state.simulation.phase === 'executing' || state.simulation.phase === 'detected';
     if (!isRunning || !state.simulation.paused) return false;
     dispatch({ type: 'updateSimulation', payload: { paused: false } });
-    appendTranscript({
-      timestamp: new Date().toISOString(),
-      agent: 'COORDINATOR',
-      content: 'Resuming synchronized attack operations.'
+    dispatch({
+      type: 'appendTranscript',
+      payload: {
+        timestamp: new Date().toISOString(),
+        agent: 'COORDINATOR',
+        content: 'Resuming synchronized attack operations.',
+      },
     });
     clearTicker();
     tickRef.current = setInterval(() => {
@@ -661,61 +776,25 @@ export const AttackProvider = ({ children }: { children: ReactNode }) => {
       payload: {
         timestamp: new Date().toISOString(),
         agent: 'HUMAN OVERSIGHT',
-        content: `Adjusted vector intensity to ${level.toUpperCase()} in real time.`
-      }
+        content: `Adjusted vector intensity to ${level.toUpperCase()} in real time.`,
+      },
     });
   };
 
   const triggerManualCascade = () => {
-    const target = state.deliveries.find((delivery) => delivery.status === 'in_transit' && !delivery.cascadeAffected);
-    if (!target) return false;
-    const updatedDeliveries = state.deliveries.map((delivery) =>
-      delivery.id === target.id
-        ? {
-            ...delivery,
-            status: 'delayed',
-            cascadeAffected: true,
-            compromiseHistory: [
-              ...delivery.compromiseHistory,
-              {
-                timestamp: new Date().toISOString(),
-                vector: 'manual_override',
-                description: 'Manual cascade triggered by operator.'
-              }
-            ]
-          }
-        : delivery
-    );
-    dispatch({ type: 'setDeliveries', payload: updatedDeliveries });
-
-    const newCompromise = Math.min(state.simulation.compromisePercentage + 2, MAX_COMPROMISE_CAP);
-    const compromisedCount = Math.min(
-      updatedDeliveries.length,
-      Math.round((newCompromise / 100) * updatedDeliveries.length)
-    );
-    const newTimeline = [
-      ...state.simulation.timeline,
-      { minute: state.simulation.elapsedMinutes, compromise: newCompromise }
-    ];
-
+    const delta = 0.02;
     dispatch({
-      type: 'updateSimulation',
-      payload: {
-        compromisePercentage: newCompromise,
-        compromisedDeliveries: compromisedCount,
-        timeline: newTimeline
-      }
+      type: 'updateOffsets',
+      payload: { compromiseDelta: state.compromiseDelta + delta, cascadeMultiplier: state.cascadeMultiplier + 0.2 },
     });
-
     dispatch({
       type: 'appendTranscript',
       payload: {
         timestamp: new Date().toISOString(),
         agent: 'HUMAN OVERSIGHT',
-        content: `Manual cascade forced on ${target.id}. Diversion will increase pressure downstream.`
-      }
+        content: 'Manual cascade triggered. Increasing downstream pressure.',
+      },
     });
-
     return true;
   };
 
@@ -729,11 +808,12 @@ export const AttackProvider = ({ children }: { children: ReactNode }) => {
       appendTranscript: (message) => dispatch({ type: 'appendTranscript', payload: message }),
       startAttack,
       handleInterventionAction,
+      recordDecision,
       exportLatestReport,
       pauseAttack,
       resumeAttack,
       setLiveIntensity,
-      triggerManualCascade
+      triggerManualCascade,
     }),
     [state]
   );

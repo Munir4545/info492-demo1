@@ -7,8 +7,8 @@ body {
   font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: #020617;
-  color: #e2e8f0;
+  background-color: #f8fafc; /* surface.bg */
+  color: #0f172a; /* text.primary */
 }
 
 #root {

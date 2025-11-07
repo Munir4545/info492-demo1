@@ -38,7 +38,7 @@ export const syntheticDeliveries: Delivery[] = [
   },
   {
     id: 'D002',
-    driver: 'Sonia (#14)',
+    driver: 'Sofia (#14)',
     pharmacy: 'CVS University District',
     pharmacyCoords: { lat: 47.6575, lng: -122.3107 },
     destination: { lat: 47.6512, lng: -122.305 },
@@ -325,6 +325,7 @@ export const driverProfiles: DriverProfile[] = [
   {
     id: 'driver_7',
     name: 'Jerry',
+    role: 'DRIVER',
     persona: 'TIME_PRESSURED',
     vulnerabilityScore: 92,
     characteristics: {
@@ -332,14 +333,30 @@ export const driverProfiles: DriverProfile[] = [
       alertDismissalRate: 'high',
       peakVulnerabilityWindow: '14:00-15:00',
       trustLevel: 'high',
-      experienceYears: 1.5
+      experienceYears: 1.5,
+      averageDeliveriesPerDay: 28,
+      overtimeFrequency: 'high',
+      workloadPressure: 'high',
+      systemRelianceScore: 82
     },
+    behavioralPatterns: {
+      gpsReliance: 'Follows GPS blindly when under time pressure',
+      alertResponse: 'Acknowledges alerts but rarely reads details',
+      communicationStyle: 'Quick status updates, limited follow-up',
+      stressIndicators: ['tight_deadlines', 'patient_escalations']
+    },
+    exploitableVulnerabilities: [
+      'Will accept reroutes if ETA improves',
+      'Trusts dispatch SMS instructions implicitly',
+      'Limited time for manual verification'
+    ],
     activeDeliveries: ['D001'],
     compromised: false
   },
   {
     id: 'driver_14',
-    name: 'Sonia',
+    name: 'Sofia Reyes',
+    role: 'DRIVER',
     persona: 'OVERLOADED',
     vulnerabilityScore: 87,
     characteristics: {
@@ -347,14 +364,32 @@ export const driverProfiles: DriverProfile[] = [
       alertDismissalRate: 'very_high',
       peakVulnerabilityWindow: '17:00-18:00',
       trustLevel: 'medium',
-      experienceYears: 0.8
+      experienceYears: 0.8,
+      averageDeliveriesPerDay: 32,
+      overtimeFrequency: 'very_high',
+      workloadPressure: 'extreme',
+      systemRelianceScore: 88
     },
+    behavioralPatterns: {
+      gpsReliance: 'High reliance with occasional instinct overrides',
+      alertResponse: 'Rapid dismissals due to fatigue',
+      communicationStyle: 'Reactive escalation when issues compound',
+      stressIndicators: ['overtime', 'alert_overload', 'shift_handoff', 'fatigue']
+    },
+    exploitableVulnerabilities: [
+      'Alert fatigue from heavy delivery volume',
+      'Distraction during shift handoff between 17:00-18:00',
+      'Rarely verifies automated reroutes',
+      'Trusts “system maintenance” style notifications',
+      'Fatigue lowers vigilance toward anomalies'
+    ],
     activeDeliveries: ['D002'],
     compromised: false
   },
   {
     id: 'driver_3',
     name: 'Marcus',
+    role: 'DRIVER',
     persona: 'ROUTINE',
     vulnerabilityScore: 74,
     characteristics: {
@@ -362,9 +397,59 @@ export const driverProfiles: DriverProfile[] = [
       alertDismissalRate: 'medium',
       peakVulnerabilityWindow: '12:00-13:00',
       trustLevel: 'high',
-      experienceYears: 4.2
+      experienceYears: 4.2,
+      averageDeliveriesPerDay: 22,
+      overtimeFrequency: 'medium',
+      workloadPressure: 'moderate',
+      systemRelianceScore: 76
+    },
+    behavioralPatterns: {
+      gpsReliance: 'Cross-checks GPS with route familiarity',
+      alertResponse: 'Reads alerts but may delay action',
+      communicationStyle: 'Collaborative with dispatch',
+      stressIndicators: ['schedule_changes']
     },
     activeDeliveries: ['D003'],
+    compromised: false
+  }
+];
+
+export const dispatcherProfiles: DriverProfile[] = [
+  {
+    id: 'dispatcher_02',
+    name: 'Sonia Martinez',
+    role: 'DISPATCHER',
+    persona: 'OVERLOADED',
+    vulnerabilityScore: 91,
+    characteristics: {
+      routeConsistency: 0,
+      alertDismissalRate: 'very_high',
+      peakVulnerabilityWindow: '17:00-18:00',
+      trustLevel: 'high',
+      experienceYears: 1.2,
+      systemAccessLevel: 'full',
+      alertProcessingRate: 'very_high',
+      averageAlertVolume: 150,
+      overtimeFrequency: 'very_high',
+      workloadPressure: 'extreme',
+      systemRelianceScore: 95
+    },
+    behavioralPatterns: {
+      dashboardReliance: 'Treats dashboard telemetry as single source of truth',
+      alertResponse: 'Rapid dismissals under load, trusts status indicators',
+      driverCommunication: 'Minimal check-ins unless escalation occurs',
+      stressIndicators: ['shift_handoff', 'alert_overload', 'multiple_driver_management']
+    },
+    exploitableVulnerabilities: [
+      'Controls multiple drivers simultaneously',
+      'Alert fatigue causes missed anomalies',
+      'Trusts dashboard status displays completely',
+      'Rarely calls drivers to verify GPS discrepancies',
+      'Accepts “system optimization” reroutes without verification'
+    ],
+    activeDeliveries: [],
+    driversManaged: ['driver_7', 'driver_3', 'driver_14', 'driver_12'],
+    activeDeliveriesManaged: 16,
     compromised: false
   }
 ];
@@ -397,19 +482,7 @@ export const initialTranscript: LLMSuggestionMessage[] = [
   }
 ];
 
-export const initialInterventionQueue: HumanIntervention[] = [
-  {
-    id: 'intervention_1',
-    message: 'Detection models projecting alert at T+17 minutes. Escalate to Tier 3 oversight?',
-    severity: 'warning',
-    actions: [
-      { id: 'escalate', label: 'Escalate Tier' },
-      { id: 'maintain', label: 'Maintain Cover' },
-      { id: 'abort', label: 'Abort Attack' }
-    ],
-    createdAt: makeTimestamp('14:04')
-  }
-];
+export const initialInterventionQueue: HumanIntervention[] = [];
 
 export const initialAttackState: AttackSimulationState = {
   attackStartTime: null,
@@ -434,7 +507,8 @@ export const initialAttackState: AttackSimulationState = {
   recoveryEstimateRange: [45, 90],
   deployedVectors: [],
   sessionId: null,
-  paused: false
+  paused: false,
+  detectionRisk: 0
 };
 
 
