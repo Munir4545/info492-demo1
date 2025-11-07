@@ -673,7 +673,6 @@
                     <div id="hil-list" class="space-y-3 text-sm"></div>
             </div>
                 
-<<<<<<< Updated upstream
                 <!-- Route Progress Visualization -->
                 <div class="panel p-6">
                     <div class="flex items-center justify-between mb-4">
@@ -716,7 +715,33 @@
                                 <div class="flex items-center gap-1">
                                     <div class="w-20 h-1 bg-red-500 transform rotate-12 origin-left"></div>
                                     <span class="text-xs text-red-600 font-bold">⚠️ DIVERTED</span>
-=======
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Progress Info -->
+                        <div class="flex items-center justify-between mt-3 text-xs text-slate-600">
+                            <div>
+                                <span class="font-semibold">Progress:</span>
+                                <span id="route-progress-pct">0%</span>
+                            </div>
+                            <div>
+                                <span class="font-semibold">Distance:</span>
+                                <span id="route-distance">0 / 24 miles</span>
+                            </div>
+                            <div>
+                                <span class="font-semibold">ETA:</span>
+                                <span id="route-eta">--:--</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Route Alerts -->
+                    <div id="route-alerts" class="space-y-2 min-h-[3rem]">
+                        <div class="text-xs text-slate-500 italic">Route monitoring active...</div>
+                    </div>
+                </div>
+                
                 <!-- Attack Summary (Shows at end of attack) -->
                 <div id="attack-summary" class="hidden space-y-8">
                     <div class="panel p-6 bg-gradient-to-r from-slate-50 to-blue-50 border-2 border-blue-200">
@@ -748,34 +773,9 @@
                                         <div>Detection: <span id="summary-detection-time">0 min</span></div>
                                         <div>Impact: <span id="summary-impact-time">0 min</span></div>
                                     </div>
->>>>>>> Stashed changes
                                 </div>
                             </div>
                         </div>
-                        
-<<<<<<< Updated upstream
-                        <!-- Progress Info -->
-                        <div class="flex items-center justify-between mt-3 text-xs text-slate-600">
-                            <div>
-                                <span class="font-semibold">Progress:</span>
-                                <span id="route-progress-pct">0%</span>
-                            </div>
-                            <div>
-                                <span class="font-semibold">Distance:</span>
-                                <span id="route-distance">0 / 24 miles</span>
-                            </div>
-                            <div>
-                                <span class="font-semibold">ETA:</span>
-                                <span id="route-eta">--:--</span>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Route Alerts -->
-                    <div id="route-alerts" class="space-y-2 min-h-[3rem]">
-                        <div class="text-xs text-slate-500 italic">Route monitoring active...</div>
-                    </div>
-                </div>
                 
                 <!-- Attack Success Metrics Panel -->
                 <div class="panel p-6">
@@ -872,7 +872,9 @@
                                 <span class="text-xs font-semibold text-slate-700">Failed Deliveries</span>
                             </div>
                             <div class="text-sm font-bold text-red-600" id="failed-deliveries">0 Attempts</div>
-=======
+                        </div>
+                    </div>
+                    
                         <!-- Attack Vector Effectiveness -->
                         <div class="mb-6">
                             <h4 class="font-bold text-lg text-slate-700 mb-4">Attack Vector Effectiveness</h4>
@@ -930,12 +932,10 @@
                                 <div class="font-semibold text-slate-700 mb-2">Patient Notifications Sent</div>
                                 <div id="summary-notifications" class="text-sm text-slate-600 space-y-1 max-h-32 overflow-y-auto"></div>
                             </div>
->>>>>>> Stashed changes
                         </div>
                     </div>
                 </div>
                 
-<<<<<<< Updated upstream
                 <!-- Impact Visualization Panel -->
                 <div class="panel p-6">
                     <div class="flex items-center justify-between mb-4">
@@ -980,8 +980,6 @@
                     </div>
                 </div>
                 
-=======
->>>>>>> Stashed changes
                 <div class="flex flex-col md:flex-row md:items-center md:justify-end gap-3">
                     <button id="export-btn" class="primary-btn md:w-auto w-full" disabled>Export Results</button>
                     <button id="reset-btn" class="ghost-btn md:w-auto w-full">Reset</button>
@@ -1981,14 +1979,11 @@
             renderSuggestions();
             updateImpactVisualization();
             addConsoleLine(`🚀 Attack #${data.attackId} started`);
-<<<<<<< Updated upstream
             initializeRoute(); // Start route visualization
             addRouteAlert('🚗 Vehicle departed from distribution center', 'success');
             resetAttackMetrics(); // Initialize attack metrics
             resetPatientExperience(); // Initialize patient experience
-=======
             startInsulinTimer();
->>>>>>> Stashed changes
         });
         
         socket.on('attack:completed', (data) => {
@@ -2008,7 +2003,6 @@
                 if (!data || !Array.isArray(data.entries)) return;
                 ingestLLMEntries(data.attackId, data.entries);
             });
-<<<<<<< Updated upstream
             socket.on('impact:updated', updateImpact);
         }
 
@@ -2255,7 +2249,11 @@
                             <div class="flex items-center gap-2 bg-red-100 rounded px-2 py-1">
                                 <span class="text-lg">⏰</span>
                                 <span class="text-xs font-bold text-red-700">Medication needed within ${alert.timeWindow} hours</span>
-=======
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
             
             // Impact visualization events
             socket.on('impact:updated', (data) => {
@@ -2796,29 +2794,35 @@
                                     <div class="text-xs text-slate-500">Reason: ${delivery.reason}</div>
                                 </div>
                                 <div class="text-red-600 font-bold">FAILED</div>
->>>>>>> Stashed changes
                             </div>
                         </div>
                     `;
                 }).join('');
             }
-<<<<<<< Updated upstream
 
             // Update notifications counter
-            document.getElementById('patient-notifications').textContent = 
-                `${patientExperience.criticalAlerts.length} Critical Alert${patientExperience.criticalAlerts.length !== 1 ? 's' : ''}`;
+            const notificationsEl = document.getElementById('patient-notifications');
+            if (notificationsEl) {
+                notificationsEl.textContent = 
+                    `${patientExperience.criticalAlerts.length} Critical Alert${patientExperience.criticalAlerts.length !== 1 ? 's' : ''}`;
+            }
 
             // Update pharmacy status
             const pharmacyStatus = document.getElementById('pharmacy-status');
-            if (patientExperience.pharmacyConflict) {
-                pharmacyStatus.innerHTML = '<span class="text-red-600">✗ Status Conflict</span>';
-            } else {
-                pharmacyStatus.innerHTML = '<span class="text-green-600">✓ Synced</span>';
+            if (pharmacyStatus && patientExperience) {
+                if (patientExperience.pharmacyConflict) {
+                    pharmacyStatus.innerHTML = '<span class="text-red-600">✗ Status Conflict</span>';
+                } else {
+                    pharmacyStatus.innerHTML = '<span class="text-green-600">✓ Synced</span>';
+                }
             }
 
-            // Update failed deliveries
-            document.getElementById('failed-deliveries').textContent = 
-                `${patientExperience.failedAttempts} Attempt${patientExperience.failedAttempts !== 1 ? 's' : ''}`;
+            // Update failed deliveries (if element exists and patientExperience is available)
+            const failedDeliveriesEl = document.getElementById('failed-deliveries');
+            if (failedDeliveriesEl && patientExperience && !failedDeliveriesEl.innerHTML.trim()) {
+                failedDeliveriesEl.textContent = 
+                    `${patientExperience.failedAttempts} Attempt${patientExperience.failedAttempts !== 1 ? 's' : ''}`;
+            }
         }
 
         function resetPatientExperience() {
@@ -3058,9 +3062,10 @@
             }
 
             updateRouteDisplay();
-=======
-            
-            // Update conflicting status
+        }
+
+        // Update conflicting status (separate function)
+        function updateConflictingStatus() {
             const conflictContainer = document.getElementById('conflicting-status');
             if (conflictContainer && patientData.conflictingStatus.length > 0) {
                 const latest = patientData.conflictingStatus[patientData.conflictingStatus.length - 1];
@@ -3124,7 +3129,6 @@
                     }
                 }
             }, 1000);
->>>>>>> Stashed changes
         }
 
         async function completeAuthentication(payload) {
@@ -3410,18 +3414,15 @@
 
         renderPendingActions();
         renderLLMShell();
-<<<<<<< Updated upstream
         renderImpact();
         renderAttackMetrics();
         renderPatientExperience();
-=======
         setupDeliveryDetailsHandlers();
         window.addEventListener('resize', () => {
             if (impactData.deliveries.length) {
                 updateDeliveryMap();
             }
         });
->>>>>>> Stashed changes
         restoreSession();
     </script>
 </body>
