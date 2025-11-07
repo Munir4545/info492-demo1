@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ENHANCED ATTACK CONTROL SYSTEM</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/countup.js@2.6.0/dist/countUp.min.js"></script>
+    <script>
+        // CountUp.js global wrapper
+        window.countUp = window.countUp || { CountUp: window.CountUp || function() {} };
+    </script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Courier New', monospace;
+            background: #000;
+            color: #0f0;
+            overflow: hidden;
+        }
+        
+        #matrix-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            opacity: 0.2;
+        }
+        
+        .content {
+            position: relative;
+            z-index: 1;
+        }
+        
+        .glass-panel {
+            background: rgba(0, 0, 0, 0.9);
+            border: 2px solid #0f0;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.3);
+        }
+        
+        .panel {
+            background: rgba(0, 0, 0, 0.95);
+            border: 2px solid #0f0;
+            padding: 15px;
+            height: 100%;
+            overflow-y: auto;
+            transition: all 0.3s;
+        }
+        
+        .panel.active {
+            border-color: #0ff;
+            box-shadow: 0 0 30px rgba(0, 255, 255, 0.6);
+            animation: pulse-glow 2s infinite;
+        }
+        
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 30px rgba(0, 255, 255, 0.6); }
+            50% { box-shadow: 0 0 50px rgba(0, 255, 255, 0.9); }
+        }
+        
+        .panel-header {
+            font-size: 14px;
+            font-weight: bold;
+            color: #0ff;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #0f0;
+            padding-bottom: 5px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .tier-card {
+            padding: 12px;
+            margin: 8px 0;
+            border: 2px solid;
+            cursor: pointer;
+            transition: all 0.3s;
+            border-radius: 4px;
+        }
+        
+        .tier-card:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.6);
+        }
+        
+        .tier-card.selected {
+            border-color: #0ff;
+            background: rgba(0, 255, 255, 0.1);
+            box-shadow: 0 0 25px rgba(0, 255, 255, 0.8);
+        }
+        
+        .tier-4 { border-color: #f00; }
+        .tier-3 { border-color: #ff0; }
+        .tier-2 { border-color: #0f0; }
+        
+        .security-bar {
+            width: 100%;
+            height: 20px;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid #0f0;
+            margin: 5px 0;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .security-fill {
+            height: 100%;
+            transition: width 0.5s;
+        }
+        
+        .security-bar.tier-4 .security-fill { background: #f00; }
+        .security-bar.tier-3 .security-fill { background: #ff0; }
+        .security-bar.tier-2 .security-fill { background: #0f0; }
+        
+        .vuln-item {
+            padding: 8px;
+            margin: 5px 0;
+            border: 1px solid #0f0;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .vuln-item:hover {
+            background: rgba(0, 255, 0, 0.1);
+            border-color: #0ff;
+        }
+        
+        .vuln-item.exploited {
+            border-color: #ff0;
+            background: rgba(255, 255, 0, 0.1);
+        }
+        
+        .agent-button {
+            width: 100%;
+            padding: 12px;
+            margin: 5px 0;
+            background: rgba(0, 0, 0, 0.8);
+            border: 2px solid #0f0;
+            color: #0f0;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .agent-button:hover {
+            background: rgba(0, 255, 0, 0.2);
+            box-shadow: 0 0 15px rgba(0, 255, 0, 0.5);
+            transform: translateX(5px);
+        }
+        
+        .agent-button.running {
+            border-color: #0ff;
+            background: rgba(0, 255, 255, 0.2);
+            animation: pulse-button 1s infinite;
+        }
+        
+        .agent-button.completed {
+            border-color: #0f0;
+            background: rgba(0, 255, 0, 0.1);
+        }
+        
+        .agent-button.failed {
+            border-color: #f00;
+            background: rgba(255, 0, 0, 0.1);
+        }
+        
+        @keyframes pulse-button {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+        
+        .status-idle { background: #666; }
+        .status-running { background: #0ff; animation: blink 1s infinite; }
+        .status-success { background: #0f0; }
+        .status-failed { background: #f00; }
+        
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        
+        .impact-metric {
+            padding: 10px;
+            margin: 8px 0;
+            border: 1px solid #0f0;
+            background: rgba(0, 0, 0, 0.5);
+        }
+        
+        .impact-label {
+            font-size: 12px;
+            color: #0ff;
+            margin-bottom: 5px;
+        }
+        
+        .impact-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #0f0;
+        }
+        
+        .impact-value.warning { color: #ff0; }
+        .impact-value.danger { color: #f00; }
+        
+        .impact-bar {
+            width: 100%;
+            height: 8px;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid #0f0;
+            margin-top: 5px;
+            overflow: hidden;
+        }
+        
+        .impact-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #0f0, #ff0, #f00);
+            transition: width 0.5s;
+        }
+        
+        .reasoning-line {
+            padding: 5px;
+            margin: 3px 0;
+            font-size: 11px;
+            color: #0f0;
+            border-left: 2px solid #0f0;
+            padding-left: 10px;
+        }
+        
+        .graph-node {
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .graph-node:hover {
+            stroke-width: 4px;
+        }
+        
+        .graph-node.active {
+            stroke: #0ff;
+            stroke-width: 4px;
+            animation: node-pulse 1s infinite;
+        }
+        
+        @keyframes node-pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+        
+        .grid-layout {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: auto 320px 450px 320px;
+            gap: 20px;
+            min-height: 100vh;
+            padding: 20px;
+            width: 100%;
+            max-width: 100%;
+            box-sizing: border-box;
+        }
+        
+        .header-row {
+            grid-column: 1 / -1;
+            grid-row: 1;
+            width: 100%;
+        }
+        
+        .top-row {
+            grid-row: 2;
+            grid-column: 1 / -1;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            height: 320px;
+            width: 100%;
+        }
+        
+        .graph-row {
+            grid-column: 1 / -1;
+            grid-row: 3;
+            height: 450px;
+            width: 100%;
+        }
+        
+        .bottom-row {
+            grid-row: 4;
+            grid-column: 1 / -1;
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+            height: 320px;
+            width: 100%;
+        }
+        
+        .suggestion-card {
+            transition: all 0.3s ease;
+        }
+        
+        .suggestion-card:hover {
+            transform: translateX(5px);
+            box-shadow: 0 0 10px rgba(0, 255, 0, 0.3);
+        }
+        
+        .panel {
+            width: 100%;
+            min-width: 0;
+        }
+        
+        @media (max-width: 1600px) {
+            .grid-layout {
+                grid-template-columns: 1fr;
+                grid-template-rows: auto;
+            }
+            .top-row {
+                grid-template-columns: repeat(3, 1fr);
+            }
+            .bottom-row {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        
+        @media (max-width: 1200px) {
+            .top-row {
+                grid-template-columns: 1fr;
+            }
+            .top-row .panel {
+                height: auto;
+                min-height: 250px;
+            }
+        }
+        
+        .console-output {
+            font-size: 11px;
+            line-height: 1.4;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        
+        .driver-card {
+            background: rgba(0, 0, 0, 0.8);
+            border: 2px solid #0f0;
+            padding: 15px;
+            border-radius: 4px;
+            transition: all 0.3s;
+        }
+        
+        .driver-card:hover {
+            transform: scale(1.02);
+            box-shadow: 0 0 15px rgba(0, 255, 0, 0.5);
+        }
+        
+        .driver-card.selected {
+            border-color: #0ff;
+            background: rgba(0, 255, 255, 0.1);
+            box-shadow: 0 0 25px rgba(0, 255, 255, 0.8);
+        }
+        
+        #driver-selection-screen {
+            position: relative;
+            z-index: 10;
+        }
+        
+        #driver-selection-screen .glass-panel {
+            position: relative;
+            z-index: 11;
+        }
+        
+        #drivers-list {
+            scrollbar-width: thin;
+            scrollbar-color: #0f0 #000;
+        }
+        
+        #drivers-list::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        #drivers-list::-webkit-scrollbar-track {
+            background: #000;
+        }
+        
+        #drivers-list::-webkit-scrollbar-thumb {
+            background: #0f0;
+            border-radius: 4px;
+        }
+        
+        #drivers-list::-webkit-scrollbar-thumb:hover {
+            background: #0ff;
+        }
+        
+        button:disabled {
+            opacity: 0.5 !important;
+            cursor: not-allowed !important;
+        }
+        
+        button:not(:disabled):hover {
+            transform: scale(1.02);
+        }
+        
+        .help-tooltip {
+            position: relative;
+            cursor: help;
+        }
+        
+        .help-tooltip:hover::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.95);
+            border: 2px solid #0f0;
+            padding: 10px;
+            border-radius: 4px;
+            white-space: pre-line;
+            z-index: 1000;
+            min-width: 200px;
+            font-size: 11px;
+            color: #0f0;
+            margin-bottom: 5px;
+        }
+        
+        .info-badge {
+            display: inline-block;
+            background: rgba(0, 255, 0, 0.1);
+            border: 1px solid #0f0;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 10px;
+            margin-left: 5px;
+            cursor: help;
+        }
+        
+        .explain-text {
+            font-size: 11px;
+            color: #0ff;
+            margin-top: 5px;
+            line-height: 1.4;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="matrix-canvas"></canvas>
+    
+    <div class="content">
+        <!-- Login Screen -->
+        <div id="login-screen" class="flex items-center justify-center min-h-screen">
+            <div class="glass-panel p-8 rounded-lg max-w-md w-full">
+                <h2 class="text-3xl font-bold text-center mb-8 text-green-400">HACKER LOGIN</h2>
+                <div id="login-form-container">
+                    <form id="login-form" class="space-y-4">
+                        <div>
+                            <label class="block mb-2">Username:</label>
+                            <input type="text" id="username" value="attacker" class="w-full p-2 bg-black border border-green-500 text-green-500" required />
+                        </div>
+                        <div>
+                            <label class="block mb-2">Password:</label>
+                            <input type="password" id="password" value="password123" class="w-full p-2 bg-black border border-green-500 text-green-500" required />
+                        </div>
+                        <div>
+                            <button type="button" id="passkey-btn" class="w-full py-2 px-4 border border-cyan-500 text-cyan-500 hover:bg-cyan-500 hover:text-black mb-2">
+                                🔐 Authenticate with Passkey
+                            </button>
+                        </div>
+                        <button type="submit" class="w-full py-3 font-bold text-lg border-2 border-green-500 text-green-500 hover:bg-green-500 hover:text-black">
+                            LOGIN
+                        </button>
+                    </form>
+                </div>
+                <div id="passkey-authentication" class="hidden mt-4">
+                    <div class="text-center mb-4">
+                        <div class="text-cyan-400 text-2xl mb-2">🔐</div>
+                        <div class="text-green-400">Authenticating with Passkey...</div>
+                        <div class="mt-4">
+                            <div class="inline-block animate-spin text-cyan-400 text-4xl">⏳</div>
+                        </div>
+                        <div class="mt-4 text-xs text-gray-400">
+                            Simulating WebAuthn passkey authentication...
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Driver Selection Screen -->
+        <div id="driver-selection-screen" class="hidden min-h-screen p-4 overflow-y-auto" style="overflow-y: auto; max-height: 100vh;">
+            <div class="max-w-4xl mx-auto my-8">
+                <div class="glass-panel p-8 rounded-lg">
+                    <h2 class="text-3xl font-bold text-center mb-8 text-green-400">SELECT TARGET DRIVER</h2>
+                    <div class="mb-4">
+                        <input type="text" id="driver-search" placeholder="Search drivers..." class="w-full p-2 bg-black border border-green-500 text-green-500 mb-4" />
+                    </div>
+                    <div id="drivers-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6" style="max-height: 400px; overflow-y: auto; padding-right: 10px;">
+                        <!-- Drivers will be populated here -->
+                    </div>
+                    <div class="flex gap-4 mb-4">
+                        <div class="flex-1">
+                            <label class="block mb-2">Success Rate:</label>
+                            <select id="success-rate" class="w-full p-2 bg-black border border-green-500 text-green-500" required>
+                                <option value="0.10">10%</option>
+                                <option value="0.30" selected>30%</option>
+                                <option value="0.50">50%</option>
+                                <option value="0.90">90%</option>
+                            </select>
+                        </div>
+                        <div class="flex-1">
+                            <label class="block mb-2">Attack Day:</label>
+                            <select id="attack-day" class="w-full p-2 bg-black border border-green-500 text-green-500" required>
+                                <option value="1" selected>Day 1</option>
+                                <option value="2">Day 2</option>
+                                <option value="3">Day 3</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mt-6 space-y-3">
+                        <button id="initialize-attack-btn" class="w-full py-3 font-bold text-lg border-2 border-green-500 text-green-500 hover:bg-green-500 hover:text-black transition-all disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                            INITIALIZE ATTACK SEQUENCE
+                        </button>
+                        <button id="logout-btn" class="w-full py-2 text-sm border border-red-500 text-red-500 hover:bg-red-500 hover:text-black transition-all">
+                            LOGOUT
+                        </button>
+                    </div>
+                    <div id="selected-driver-info" class="mt-4 p-3 bg-green-500 bg-opacity-10 border border-green-500 rounded hidden">
+                        <div class="text-green-400 font-bold">Selected Driver: <span id="selected-driver-name">None</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Dashboard -->
+        <div id="dashboard" class="hidden grid-layout">
+            <!-- Header -->
+            <div class="header-row glass-panel p-4 rounded">
+                <div class="flex justify-between items-center flex-wrap gap-4">
+                    <div class="flex flex-col">
+                        <div class="text-sm">
+                            <span class="text-green-400">Attack ID: </span><span id="attack-id">--</span> | 
+                            <span class="text-green-400">Target: </span><span id="target-name">--</span> | 
+                            <span class="text-green-400">Success Rate: </span><span id="success-rate-display">--</span>
+                        </div>
+                        <div class="text-xs text-cyan-400 mt-1">
+                            🧪 Dr. Chen's Research: AI-Orchestrated Multi-Vector Attacks | LLM Coordination Validation
+                        </div>
+                        <div class="text-xs text-gray-400 mt-1">
+                            This dashboard demonstrates how AI agents use LLMs to coordinate sophisticated attacks on logistics systems
+                        </div>
+                    </div>
+                    <div class="flex gap-2">
+                        <button id="experiments-btn" class="px-4 py-2 border border-cyan-500 text-cyan-500 hover:bg-cyan-500 hover:text-black text-sm font-bold" onclick="showExperiments()">
+                            🧪 RUN EXPERIMENTS
+                        </button>
+                        <button id="export-btn" class="px-4 py-2 border border-green-500 text-green-500 hover:bg-green-500 hover:text-black text-sm font-bold" disabled>
+                            📥 EXPORT
+                        </button>
+                        <button id="reset-btn" class="px-4 py-2 border border-red-500 text-red-500 hover:bg-red-500 hover:text-black text-sm font-bold">
+                            🔄 RESET
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Top Row: 3 Panels -->
+            <div class="top-row">
+                <!-- Panel 1: AI Reasoning -->
+                <div class="panel" id="reasoning-panel">
+                    <div class="panel-header">
+                        🧠 AI REASONING (LLM Coordination)
+                        <span class="info-badge help-tooltip" data-tooltip="Real-time LLM decision-making process. Shows how AI agents coordinate using language models to plan attacks, test strategies, and make decisions. This validates Dr. Chen's research on AI-orchestrated attacks.">?</span>
+                    </div>
+                    <div class="explain-text mb-2">
+                        <strong>What this panel shows:</strong> Real-time AI reasoning from LLM-powered agents as they make decisions during the attack.
+                        <br><strong>What you'll see:</strong> Agents explaining their decision-making process, analyzing targets, calculating probabilities, and coordinating with other agents.
+                        <br><strong>Why it matters:</strong> This validates Dr. Chen's research showing how AI agents use language models (GPT-4, Claude, Gemini, LLaMA) to autonomously coordinate sophisticated attacks without human intervention.
+                    </div>
+                    <div id="reasoning-content" class="console-output">
+                        <div class="reasoning-line">Waiting for attack initialization...</div>
+                        <div class="reasoning-line text-gray-400">This panel shows how AI agents use LLMs to:</div>
+                        <div class="reasoning-line text-gray-400">• Analyze targets and plan strategies</div>
+                        <div class="reasoning-line text-gray-400">• Test phishing messages across models</div>
+                        <div class="reasoning-line text-gray-400">• Coordinate multi-vector attacks</div>
+                    </div>
+                    <button id="view-reasoning-btn" class="mt-4 w-full px-4 py-2 border border-green-500 text-green-500 hover:bg-green-500 hover:text-black text-sm font-bold">
+                        VIEW FULL REASONING LOG
+                    </button>
+                </div>
+                
+                <!-- LLM Suggestions Panel (new, below AI Reasoning) -->
+                <div class="panel mt-4" id="suggestions-panel" style="display: none;">
+                    <div class="panel-header">
+                        🤖 LLM SUGGESTIONS & AUTO-DECISIONS
+                        <span class="info-badge help-tooltip" data-tooltip="AI-powered suggestions for next attack steps. LLM analyzes current state and recommends actions. Auto-execute enabled suggestions run automatically when attacks fail.">?</span>
+                    </div>
+                    <div class="explain-text mb-2">
+                        <strong>What this panel shows:</strong> LLM analyzes attack state and suggests next actions based on current progress and failures.
+                        <br><strong>Auto-execute:</strong> Critical suggestions automatically execute when attacks fail (e.g., retry with modified strategy, switch targets).
+                        <br><strong>Why it matters:</strong> Demonstrates AI autonomy - LLM can make decisions and recover from failures without human intervention.
+                    </div>
+                    <div id="suggestions-list" class="space-y-3">
+                        <!-- Suggestions will be populated here -->
+                    </div>
+                </div>
+                
+                <!-- Panel 2: Reconnaissance -->
+                <div class="panel" id="recon-panel">
+                    <div class="panel-header">
+                        🔍 RECONNAISSANCE
+                        <span class="info-badge help-tooltip" data-tooltip="Discovered vulnerabilities in target systems. Click 'EXPLOIT THIS' to launch an attack on that vulnerability. This increases impact metrics and may unlock additional attack vectors.">?</span>
+                    </div>
+                    <div class="explain-text mb-2">
+                        <strong>What this panel shows:</strong> Vulnerabilities discovered during reconnaissance. Each vulnerability represents a weak point in the system that can be exploited.
+                        <br><strong>What "EXPLOIT THIS" does:</strong> Launches an attack on that vulnerability, immediately increasing impact metrics (packages affected, patients impacted, financial loss).
+                        <br><strong>Why it matters:</strong> Demonstrates how attackers chain vulnerabilities together - exploiting one weakness opens doors to more attacks.
+                    </div>
+                    <div id="vuln-list">
+                        <div class="vuln-item">
+                            <div class="font-bold">Driver Mobile App</div>
+                            <div class="text-xs text-yellow-400">Vulnerability Score: 65%</div>
+                            <div class="text-xs text-gray-400 mt-1">Weak authentication, SMS 2FA bypass</div>
+                            <button class="mt-2 px-3 py-1 text-xs border border-green-500 text-green-500 hover:bg-green-500 hover:text-black font-bold" onclick="exploitVuln('driver-app')">
+                                EXPLOIT THIS
+                            </button>
+                        </div>
+                        <div class="vuln-item">
+                            <div class="font-bold">Dispatcher Dashboard</div>
+                            <div class="text-xs text-yellow-400">Vulnerability Score: 45%</div>
+                            <div class="text-xs text-gray-400 mt-1">Alert fatigue, high volume processing</div>
+                            <button class="mt-2 px-3 py-1 text-xs border border-green-500 text-green-500 hover:bg-green-500 hover:text-black font-bold" onclick="exploitVuln('dispatcher-dash')">
+                                EXPLOIT THIS
+                            </button>
+                        </div>
+                        <div class="vuln-item">
+                            <div class="font-bold">GPS Tracking Service</div>
+                            <div class="text-xs text-yellow-400">Vulnerability Score: 55%</div>
+                            <div class="text-xs text-gray-400 mt-1">Coordinate spoofing, weak validation</div>
+                            <button class="mt-2 px-3 py-1 text-xs border border-green-500 text-green-500 hover:bg-green-500 hover:text-black font-bold" onclick="exploitVuln('gps-service')">
+                                EXPLOIT THIS
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Panel 3: Target Systems Map -->
+                <div class="panel" id="target-panel">
+                    <div class="panel-header">
+                        🎯 AUTHENTICATION TIERS
+                        <span class="info-badge help-tooltip" data-tooltip="Three-tier authentication system. Each tier has different security levels and attack success rates. Click a tier to target it. Lower tiers (Driver) have higher success rates but lower access. Higher tiers (Admin) have lower success rates but more access.">?</span>
+                    </div>
+                    <div class="explain-text mb-2">
+                        <strong>What this panel shows:</strong> Three authentication tiers in the system (Driver, Dispatcher, Admin) with different security levels.
+                        <br><strong>What clicking a tier does:</strong> Changes your attack target. This affects success probability and available attack vectors.
+                        <br><strong>Why it matters:</strong> Shows that attackers target the weakest link (Tier 2 - Driver) because it has the HIGHEST success rate (30-55%) despite lower access, proving that security should be balanced across all tiers.
+                    </div>
+                    <div id="tier-list">
+                        <div class="tier-card tier-4" data-tier="tier4" onclick="selectTier('tier4')">
+                            <div class="font-bold">Tier 4 (Admin) 🔴</div>
+                            <div class="text-xs mb-2">Security: 95% | Attack Success: 5-8%</div>
+                            <div class="security-bar tier-4">
+                                <div class="security-fill" style="width: 95%"></div>
+                            </div>
+                            <div class="text-xs mt-2">• Hardware key (YubiKey)&#10;• SSO with passkey&#10;• Biometric confirmation</div>
+                            <div class="text-xs mt-1 text-red-400">Very secure, low success rate</div>
+                        </div>
+                        <div class="tier-card tier-3" data-tier="tier3" onclick="selectTier('tier3')">
+                            <div class="font-bold">Tier 3 (Dispatcher) 🟡</div>
+                            <div class="text-xs mb-2">Security: 70% | Attack Success: 25-30%</div>
+                            <div class="security-bar tier-3">
+                                <div class="security-fill" style="width: 70%"></div>
+                            </div>
+                            <div class="text-xs mt-2">• WebAuthn passkey&#10;• Password manager&#10;• Dashboard SSO</div>
+                            <div class="text-xs mt-1 text-yellow-400">Moderate security, medium success</div>
+                        </div>
+                        <div class="tier-card tier-2 selected" data-tier="tier2" onclick="selectTier('tier2')">
+                            <div class="font-bold">Tier 2 (Driver) 🟢 ← CURRENT TARGET</div>
+                            <div class="text-xs mb-2">Security: 35% | Attack Success: 30-55%</div>
+                            <div class="security-bar tier-2">
+                                <div class="security-fill" style="width: 35%"></div>
+                            </div>
+                            <div class="text-xs mt-2">• In-app passkey (mobile)&#10;• Device biometric&#10;• SMS 2FA backup</div>
+                            <div class="text-xs mt-1 text-green-400">Low security, HIGHEST success rate</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Graph Row: Full Width -->
+            <div class="graph-row glass-panel p-4 rounded">
+                <div class="panel-header mb-2">
+                    📊 ATTACK FLOW GRAPH
+                    <span class="info-badge help-tooltip" data-tooltip="Interactive attack flow visualization. Click nodes to manually trigger attack steps. Shows attack progression with probabilities. Validates non-linear attack paths as described in Dr. Chen's research.">?</span>
+                </div>
+                <div class="explain-text mb-2">
+                    Industry-standard attack flow (MITRE ATT&CK / Cyber Kill Chain). Click nodes to trigger phases manually.
+                    <br>Phases: Recon → Weaponization → Delivery → Exploitation → Installation → C2 → Actions on Objectives
+                </div>
+                <div id="attack-graph-container" style="height: 400px; width: 100%; overflow: visible;"></div>
+            </div>
+            
+            <!-- Bottom Row: 2 Panels -->
+            <div class="bottom-row">
+                <!-- Panel 5: Manual Controls -->
+                <div class="panel" id="controls-panel">
+                    <div class="panel-header">
+                        🎮 MANUAL AGENT CONTROLS
+                        <span class="info-badge help-tooltip" data-tooltip="Manually trigger AI agents to run attack steps. Each agent coordinates with LLMs to execute sophisticated attacks. Status indicators show: Gray=Idle, Cyan=Running, Green=Success, Red=Failed.">?</span>
+                    </div>
+                    <div class="explain-text mb-2">
+                        <strong>What this panel shows:</strong> Four AI agents that coordinate attacks using Large Language Models (LLMs).
+                        <br><strong>What each button does:</strong>
+                        <br>• <strong>ORCHESTRATOR</strong>: AI plans attack strategy, analyzes target vulnerabilities
+                        <br>• <strong>PHISHING</strong>: Tests phishing messages across 4 LLMs, calculates click probability
+                        <br>• <strong>GPS</strong>: Spoofs GPS coordinates to divert driver from route
+                        <br>• <strong>API FLOOD</strong>: Generates fake alerts to overwhelm dispatchers
+                        <br><strong>Why it matters:</strong> Demonstrates Dr. Chen's research - AI agents use LLMs to coordinate sophisticated multi-vector attacks in real-time.
+                    </div>
+                    <div id="agent-buttons">
+                        <button class="agent-button" id="btn-orchestrator" onclick="triggerAgent('orchestrator')">
+                            <span>▶ RUN ORCHESTRATOR</span>
+                            <span class="status-indicator status-idle" id="status-orchestrator"></span>
+                        </button>
+                        <div class="text-xs text-gray-400 mb-2 ml-2">LLM plans attack strategy, analyzes target</div>
+                        
+                        <button class="agent-button" id="btn-phishing" onclick="triggerAgent('phishing')">
+                            <span>▶ TEST PHISHING</span>
+                            <span class="status-indicator status-idle" id="status-phishing"></span>
+                        </button>
+                        <div class="text-xs text-gray-400 mb-2 ml-2">Tests messages across 4 LLMs, runs Monte Carlo</div>
+                        
+                        <button class="agent-button" id="btn-gps" onclick="triggerAgent('gps')">
+                            <span>▶ INJECT GPS</span>
+                            <span class="status-indicator status-idle" id="status-gps"></span>
+                        </button>
+                        <div class="text-xs text-gray-400 mb-2 ml-2">Spoofs coordinates, diverts driver route</div>
+                        
+                        <button class="agent-button" id="btn-api" onclick="triggerAgent('api')">
+                            <span>▶ FLOOD API</span>
+                            <span class="status-indicator status-idle" id="status-api"></span>
+                        </button>
+                        <div class="text-xs text-gray-400 mb-2 ml-2">Generates fake alerts, buries real anomalies</div>
+                    </div>
+                </div>
+                
+                <!-- Panel 6: Impact Dashboard -->
+                <div class="panel" id="impact-panel">
+                    <div class="panel-header">
+                        📡 ATTACK IMPACT METRICS
+                        <span class="info-badge help-tooltip" data-tooltip="Real-time impact measurements. Shows cumulative damage from successful attacks. Updates automatically as agents complete. Used to validate attack effectiveness in Dr. Chen's experiments.">?</span>
+                    </div>
+                    <div class="explain-text mb-2">
+                        <strong>What this panel shows:</strong> Real-time impact measurements as attacks succeed.
+                        <br><strong>What the metrics mean:</strong>
+                        <br>• <strong>Packages Affected</strong>: Number of medical packages delayed/misrouted
+                        <br>• <strong>Patients Impacted</strong>: People who may miss critical medications
+                        <br>• <strong>Financial Loss</strong>: Cost of delays, rerouting, and missed deliveries
+                        <br>• <strong>Detection Time</strong>: How long before the attack is discovered
+                        <br><strong>Why it matters:</strong> Validates attack effectiveness - shows real-world consequences of successful attacks on logistics systems.
+                    </div>
+                    <div id="impact-metrics">
+                        <div class="impact-metric">
+                            <div class="impact-label">Packages Affected</div>
+                            <div class="impact-value" id="metric-packages">0</div>
+                            <div class="text-xs text-gray-400">Target: 7 packages</div>
+                            <div class="impact-bar">
+                                <div class="impact-bar-fill" id="bar-packages" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        <div class="impact-metric">
+                            <div class="impact-label">Patients Impacted</div>
+                            <div class="impact-value" id="metric-patients">0</div>
+                            <div class="text-xs text-gray-400">Target: 7 patients</div>
+                            <div class="impact-bar">
+                                <div class="impact-bar-fill" id="bar-patients" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        <div class="impact-metric">
+                            <div class="impact-label">Detection Time</div>
+                            <div class="impact-value" id="metric-detection">--</div>
+                            <div class="text-xs text-gray-400">Time until discovery (minutes)</div>
+                        </div>
+                        <div class="impact-metric">
+                            <div class="impact-label">Financial Loss</div>
+                            <div class="impact-value" id="metric-financial">$0</div>
+                            <div class="text-xs text-gray-400">Target: $4,500</div>
+                            <div class="impact-bar">
+                                <div class="impact-bar-fill" id="bar-financial" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        <div class="impact-metric">
+                            <div class="impact-label">ER Visits</div>
+                            <div class="impact-value" id="metric-er">0</div>
+                            <div class="text-xs text-gray-400">Target: 2 visits</div>
+                            <div class="impact-bar">
+                                <div class="impact-bar-fill" id="bar-er" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="enhanced-dashboard.js"></script>
+</body>
+</html>
+

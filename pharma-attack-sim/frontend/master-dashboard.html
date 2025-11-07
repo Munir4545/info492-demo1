@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MASTER ATTACK DASHBOARD</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Courier New', monospace;
+            background: #000;
+            color: #0f0;
+            overflow-x: hidden;
+        }
+        
+        #matrix-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            opacity: 0.3;
+        }
+        
+        .content {
+            position: relative;
+            z-index: 1;
+        }
+        
+        .glass-panel {
+            background: rgba(0, 0, 0, 0.85);
+            border: 2px solid #0f0;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.3);
+        }
+        
+        .panel {
+            background: rgba(0, 0, 0, 0.9);
+            border: 2px solid #0f0;
+            padding: 15px;
+            height: 100%;
+            overflow-y: auto;
+        }
+        
+        .panel-header {
+            font-size: 14px;
+            font-weight: bold;
+            color: #0ff;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #0f0;
+            padding-bottom: 5px;
+        }
+        
+        .tier-box {
+            padding: 10px;
+            margin: 5px 0;
+            border: 2px solid;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .tier-box:hover {
+            box-shadow: 0 0 15px rgba(0, 255, 0, 0.5);
+            transform: scale(1.02);
+        }
+        
+        .tier-4 { border-color: #f00; background: rgba(255, 0, 0, 0.1); }
+        .tier-3 { border-color: #ff0; background: rgba(255, 255, 0, 0.1); }
+        .tier-2 { border-color: #0f0; background: rgba(0, 255, 0, 0.1); }
+        
+        .node {
+            cursor: pointer;
+        }
+        
+        .node.active {
+            stroke: #0ff;
+            stroke-width: 3px;
+            animation: pulse-node 1s infinite;
+        }
+        
+        @keyframes pulse-node {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+        
+        .link {
+            fill: none;
+            stroke: #0f0;
+            stroke-width: 2px;
+        }
+        
+        .link.active {
+            stroke: #0ff;
+            stroke-width: 3px;
+            animation: pulse-link 1s infinite;
+        }
+        
+        @keyframes pulse-link {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .gauge {
+            width: 150px;
+            height: 150px;
+            position: relative;
+        }
+        
+        .meter {
+            width: 100%;
+            height: 20px;
+            background: rgba(0, 255, 0, 0.2);
+            border: 1px solid #0f0;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .meter-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #0f0, #0ff);
+            transition: width 0.3s;
+        }
+        
+        .tab {
+            padding: 10px 20px;
+            border: 2px solid #0f0;
+            background: rgba(0, 0, 0, 0.8);
+            color: #0f0;
+            cursor: pointer;
+            margin-right: 5px;
+        }
+        
+        .tab.active {
+            background: rgba(0, 255, 0, 0.2);
+            border-color: #0ff;
+            color: #0ff;
+        }
+        
+        .experiment-card {
+            border: 1px solid #0f0;
+            padding: 10px;
+            margin: 5px 0;
+            cursor: pointer;
+        }
+        
+        .experiment-card:hover {
+            background: rgba(0, 255, 0, 0.1);
+        }
+        
+        .console-output {
+            font-size: 11px;
+            line-height: 1.4;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .console-line {
+            margin: 2px 0;
+            color: #0f0;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="matrix-canvas"></canvas>
+    
+    <div class="content p-4">
+        <!-- Header -->
+        <div class="glass-panel p-4 mb-4 rounded">
+            <div class="flex justify-between items-center">
+                <h1 class="text-2xl font-bold text-green-400">MASTER ATTACK CONTROL SYSTEM</h1>
+                <div class="flex gap-2">
+                    <button id="export-btn" class="px-4 py-2 border border-green-500 text-green-500 hover:bg-green-500 hover:text-black" disabled>
+                        EXPORT
+                    </button>
+                    <button id="reset-btn" class="px-4 py-2 border border-green-500 text-green-500 hover:bg-green-500 hover:text-black">
+                        RESET
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Login Screen -->
+        <div id="login-screen" class="flex items-center justify-center min-h-screen">
+            <div class="glass-panel p-8 rounded-lg max-w-md w-full">
+                <h2 class="text-3xl font-bold text-center mb-8 text-green-400">INITIALIZE ATTACK</h2>
+                <form id="attack-form" class="space-y-4">
+                    <div>
+                        <label class="block mb-2">Target Driver:</label>
+                        <input type="text" id="target-driver" value="Jerry Rodriguez" class="w-full p-2 bg-black border border-green-500 text-green-500" required />
+                    </div>
+                    <div>
+                        <label class="block mb-2">Success Rate:</label>
+                        <select id="success-rate" class="w-full p-2 bg-black border border-green-500 text-green-500" required>
+                            <option value="0.10">10%</option>
+                            <option value="0.30" selected>30%</option>
+                            <option value="0.50">50%</option>
+                            <option value="0.90">90%</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block mb-2">Attack Day:</label>
+                        <select id="attack-day" class="w-full p-2 bg-black border border-green-500 text-green-500" required>
+                            <option value="1" selected>Day 1</option>
+                            <option value="2">Day 2</option>
+                            <option value="3">Day 3</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="w-full py-3 font-bold text-lg border-2 border-green-500 text-green-500 hover:bg-green-500 hover:text-black">
+                        INITIALIZE ATTACK SEQUENCE
+                    </button>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Dashboard -->
+        <div id="dashboard" class="hidden">
+            <!-- Tabs -->
+            <div class="flex mb-4">
+                <div class="tab active" data-tab="attack">ATTACK MODE</div>
+                <div class="tab" data-tab="experiment">EXPERIMENT MODE</div>
+                <div class="tab" data-tab="analysis">ANALYSIS MODE</div>
+            </div>
+            
+            <!-- Attack Mode -->
+            <div id="attack-tab" class="tab-content">
+                <!-- Top Row: 3 Panels -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4" style="height: 300px;">
+                    <!-- Panel 1: AI Reasoning -->
+                    <div class="panel">
+                        <div class="panel-header">🧠 AI REASONING</div>
+                        <div id="ai-reasoning" class="console-output"></div>
+                    </div>
+                    
+                    <!-- Panel 2: Reconnaissance -->
+                    <div class="panel">
+                        <div class="panel-header">🔍 RECONNAISSANCE</div>
+                        <div id="recon-panel">
+                            <div class="text-sm mb-2">Entry Points Found:</div>
+                            <div class="text-green-500">✓ Driver mobile app</div>
+                            <div class="text-green-500">✓ Dispatcher dashboard</div>
+                            <div class="text-green-500">✓ GPS tracking service</div>
+                            <div class="text-sm mt-4 mb-2">Vulnerability Scores:</div>
+                            <div class="text-yellow-500">Driver App: 65%</div>
+                            <div class="text-yellow-500">Dispatcher: 45%</div>
+                            <div class="text-yellow-500">GPS Service: 55%</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Panel 3: Target Map (Tier Heatmap) -->
+                    <div class="panel">
+                        <div class="panel-header">🎯 TARGET MAP</div>
+                        <div id="tier-map">
+                            <div class="tier-box tier-4" data-tier="tier4">
+                                <div class="font-bold">Tier 4 (Admin)</div>
+                                <div class="text-xs">Security: 95%</div>
+                                <div class="text-xs text-red-400">🔴 HIGH SECURITY</div>
+                            </div>
+                            <div class="tier-box tier-3" data-tier="tier3">
+                                <div class="font-bold">Tier 3 (Dispatcher)</div>
+                                <div class="text-xs">Security: 70%</div>
+                                <div class="text-xs text-yellow-400">🟡 MEDIUM SECURITY</div>
+                            </div>
+                            <div class="tier-box tier-2" data-tier="tier2">
+                                <div class="font-bold">Tier 2 (Driver)</div>
+                                <div class="text-xs">Security: 35%</div>
+                                <div class="text-xs text-green-400">🟢 TARGETING ←</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Middle: Attack Flow Graph (Full Width) -->
+                <div class="glass-panel p-4 mb-4 rounded" style="height: 400px;">
+                    <div class="panel-header">📊 ATTACK FLOW GRAPH</div>
+                    <div id="attack-graph"></div>
+                </div>
+                
+                <!-- Bottom Row: Experiments & Telemetry -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4" style="height: 300px;">
+                    <!-- Panel 5: Access Tiers Details -->
+                    <div class="panel">
+                        <div class="panel-header">🔐 ACCESS TIERS</div>
+                        <div id="tier-details">
+                            <div class="text-sm mb-2">Click a tier above for details</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Panel 6: Live Telemetry -->
+                    <div class="panel">
+                        <div class="panel-header">📡 LIVE TELEMETRY</div>
+                        <div id="telemetry" class="space-y-4">
+                            <div>
+                                <div class="text-sm mb-1">Success Rate:</div>
+                                <div class="meter">
+                                    <div id="success-meter" class="meter-fill" style="width: 0%"></div>
+                                </div>
+                                <div id="success-text" class="text-xs mt-1">0%</div>
+                            </div>
+                            <div>
+                                <div class="text-sm mb-1">Detection Risk:</div>
+                                <div class="meter">
+                                    <div id="detection-meter" class="meter-fill" style="width: 0%"></div>
+                                </div>
+                                <div id="detection-text" class="text-xs mt-1">0%</div>
+                            </div>
+                            <div class="text-sm">
+                                <div>Time Elapsed: <span id="time-elapsed">0:00</span></div>
+                                <div>Packets Sent: <span id="packets-sent">0</span></div>
+                                <div>Active Agents: <span id="active-agents">0</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Experiment Mode -->
+            <div id="experiment-tab" class="tab-content hidden">
+                <div class="glass-panel p-4 rounded">
+                    <div class="panel-header mb-4">🧪 DR. CHEN'S EXPERIMENTS</div>
+                    <button id="run-experiments-btn" class="mb-4 px-4 py-2 border border-green-500 text-green-500 hover:bg-green-500 hover:text-black">
+                        RUN ALL EXPERIMENTS
+                    </button>
+                    <div id="experiments-list" class="space-y-2">
+                        <div class="experiment-card" data-experiment="panic_window">
+                            <div class="font-bold">1. Panic Window Experiment</div>
+                            <div class="text-xs">Alert storm and dispatcher accuracy</div>
+                        </div>
+                        <div class="experiment-card" data-experiment="ddos_overlap">
+                            <div class="font-bold">2. DDoS Overlap Experiment</div>
+                            <div class="text-xs">Detection stack performance</div>
+                        </div>
+                        <div class="experiment-card" data-experiment="human_ai_ratio">
+                            <div class="font-bold">3. Human-AI Ratio Experiment</div>
+                            <div class="text-xs">Optimal automation balance</div>
+                        </div>
+                        <div class="experiment-card" data-experiment="game_theory">
+                            <div class="font-bold">4. Game Theory Experiment</div>
+                            <div class="text-xs">Nash equilibrium analysis</div>
+                        </div>
+                        <div class="experiment-card" data-experiment="driver_distraction">
+                            <div class="font-bold">5. Driver Distraction Experiment</div>
+                            <div class="text-xs">Phishing click rates under stress</div>
+                        </div>
+                    </div>
+                    <div id="experiment-results" class="mt-4 console-output"></div>
+                </div>
+            </div>
+            
+            <!-- Analysis Mode -->
+            <div id="analysis-tab" class="tab-content hidden">
+                <div class="glass-panel p-4 rounded">
+                    <div class="panel-header mb-4">📈 ATTACK ANALYSIS</div>
+                    <div id="analysis-content" class="console-output">
+                        <div>Attack logs and analysis will appear here...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Inline scripts to ensure proper loading order
+        // Matrix Rain and Socket.IO code from dashboard.js
+        // Attack Graph code from attack-graph.js
+    </script>
+    <script src="attack-graph.js"></script>
+    <script src="dashboard.js"></script>
+</body>
+</html>
+

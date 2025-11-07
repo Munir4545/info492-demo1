@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ATTACK CONTROL SYSTEM</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Courier New', monospace;
+            background: #000;
+            color: #0f0;
+            overflow: hidden;
+        }
+        
+        #matrix-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+        }
+        
+        .content {
+            position: relative;
+            z-index: 1;
+        }
+        
+        .glass-panel {
+            background: rgba(0, 0, 0, 0.8);
+            border: 2px solid #0f0;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.3);
+        }
+        
+        .agent-card {
+            background: rgba(0, 0, 0, 0.9);
+            border: 2px solid #0f0;
+            transition: all 0.3s;
+        }
+        
+        .agent-card.working {
+            box-shadow: 0 0 30px rgba(0, 255, 0, 0.8);
+            border-color: #0ff;
+            animation: pulse 1s infinite;
+        }
+        
+        .agent-card.completed {
+            border-color: #0f0;
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.5);
+        }
+        
+        .agent-card.failed {
+            border-color: #f00;
+            box-shadow: 0 0 20px rgba(255, 0, 0, 0.5);
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        
+        .console-output {
+            background: rgba(0, 0, 0, 0.9);
+            border: 2px solid #0f0;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+            padding: 10px;
+        }
+        
+        .console-line {
+            margin: 2px 0;
+            color: #0f0;
+        }
+        
+        input, select, button {
+            background: rgba(0, 0, 0, 0.8);
+            border: 2px solid #0f0;
+            color: #0f0;
+            padding: 10px;
+            font-family: 'Courier New', monospace;
+        }
+        
+        button:hover {
+            background: rgba(0, 255, 0, 0.2);
+            box-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
+        }
+        
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="matrix-canvas"></canvas>
+    
+    <div class="content">
+        <!-- Login Screen -->
+        <div id="login-screen" class="min-h-screen flex items-center justify-center p-4">
+            <div class="glass-panel p-8 rounded-lg max-w-md w-full">
+                <h1 class="text-4xl font-bold text-center mb-8 text-green-400">
+                    ATTACK CONTROL SYSTEM
+                </h1>
+                
+                <form id="attack-form" class="space-y-4">
+                    <div>
+                        <label class="block mb-2">Target Driver:</label>
+                        <input 
+                            type="text" 
+                            id="target-driver" 
+                            value="Jerry Rodriguez"
+                            class="w-full"
+                            required
+                        />
+                    </div>
+                    
+                    <div>
+                        <label class="block mb-2">Success Rate:</label>
+                        <select id="success-rate" class="w-full" required>
+                            <option value="0.10">10%</option>
+                            <option value="0.30" selected>30%</option>
+                            <option value="0.50">50%</option>
+                            <option value="0.90">90%</option>
+                        </select>
+                    </div>
+                    
+                    <div>
+                        <label class="block mb-2">Attack Day:</label>
+                        <select id="attack-day" class="w-full" required>
+                            <option value="1" selected>Day 1</option>
+                            <option value="2">Day 2</option>
+                            <option value="3">Day 3</option>
+                        </select>
+                    </div>
+                    
+                    <button 
+                        type="submit" 
+                        class="w-full py-3 font-bold text-lg"
+                    >
+                        INITIALIZE ATTACK SEQUENCE
+                    </button>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Dashboard -->
+        <div id="dashboard" class="hidden min-h-screen p-4">
+            <div class="max-w-7xl mx-auto">
+                <h1 class="text-3xl font-bold text-center mb-6 text-green-400">
+                    ATTACK DASHBOARD
+                </h1>
+                
+                <!-- Agent Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                    <div id="orchestrator-card" class="agent-card p-4 rounded">
+                        <div class="text-2xl mb-2">🧠</div>
+                        <div class="font-bold mb-1">Orchestrator</div>
+                        <div class="text-sm status">IDLE</div>
+                    </div>
+                    
+                    <div id="phishing-card" class="agent-card p-4 rounded">
+                        <div class="text-2xl mb-2">🎣</div>
+                        <div class="font-bold mb-1">Phishing</div>
+                        <div class="text-sm status">IDLE</div>
+                    </div>
+                    
+                    <div id="gps-card" class="agent-card p-4 rounded">
+                        <div class="text-2xl mb-2">📍</div>
+                        <div class="font-bold mb-1">GPS</div>
+                        <div class="text-sm status">IDLE</div>
+                    </div>
+                    
+                    <div id="api-card" class="agent-card p-4 rounded">
+                        <div class="text-2xl mb-2">💥</div>
+                        <div class="font-bold mb-1">API Flood</div>
+                        <div class="text-sm status">IDLE</div>
+                    </div>
+                </div>
+                
+                <!-- Console Output -->
+                <div class="glass-panel p-4 rounded mb-4">
+                    <div class="font-bold mb-2">LIVE CONSOLE</div>
+                    <div id="console-output" class="console-output"></div>
+                </div>
+                
+                <!-- Controls -->
+                <div class="flex gap-4">
+                    <button id="export-btn" class="px-6 py-2" disabled>
+                        EXPORT RESULTS
+                    </button>
+                    <button id="reset-btn" class="px-6 py-2">
+                        RESET
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Matrix Rain Animation
+        const canvas = document.getElementById('matrix-canvas');
+        const ctx = canvas.getContext('2d');
+        
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        
+        const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        const fontSize = 14;
+        const columns = canvas.width / fontSize;
+        const drops = [];
+        
+        for (let i = 0; i < columns; i++) {
+            drops[i] = Math.random() * -100;
+        }
+        
+        function drawMatrix() {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.fillStyle = '#0f0';
+            ctx.font = fontSize + 'px monospace';
+            
+            for (let i = 0; i < drops.length; i++) {
+                const text = chars[Math.floor(Math.random() * chars.length)];
+                const x = i * fontSize;
+                const y = drops[i] * fontSize;
+                
+                ctx.fillText(text, x, y);
+                
+                if (y > canvas.height && Math.random() > 0.975) {
+                    drops[i] = 0;
+                }
+                drops[i]++;
+            }
+        }
+        
+        setInterval(drawMatrix, 35);
+        
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        });
+        
+        // Socket.IO Connection
+        const socket = io('http://localhost:3001');
+        let currentAttackId = null;
+        
+        socket.on('connect', () => {
+            addConsoleLine('🔌 Connected to attack server');
+        });
+        
+        socket.on('disconnect', () => {
+            addConsoleLine('❌ Disconnected from server');
+        });
+        
+        socket.on('agent:message', (data) => {
+            addConsoleLine(`[${data.agent}] ${data.message}`);
+        });
+        
+        socket.on('step:started', (data) => {
+            updateAgentCard(data.step, 'working', 'WORKING');
+        });
+        
+        socket.on('step:completed', (data) => {
+            const status = data.success ? 'completed' : 'failed';
+            const text = data.success ? 'COMPLETED' : 'FAILED';
+            updateAgentCard(data.step, status, text);
+        });
+        
+        socket.on('attack:started', (data) => {
+            currentAttackId = data.attackId;
+            addConsoleLine(`🚀 Attack #${data.attackId} started`);
+        });
+        
+        socket.on('attack:completed', (data) => {
+            addConsoleLine(`✅ Attack completed. Success: ${data.success}`);
+            document.getElementById('export-btn').disabled = false;
+        });
+        
+        socket.on('attack:failed', (data) => {
+            addConsoleLine(`❌ Attack failed: ${data.error}`);
+        });
+        
+        // Form Submission
+        document.getElementById('attack-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const targetDriver = document.getElementById('target-driver').value;
+            const successRate = parseFloat(document.getElementById('success-rate').value);
+            const attackDay = parseInt(document.getElementById('attack-day').value);
+            
+            try {
+                // Create attack
+                const createResponse = await fetch('http://localhost:3001/api/attacks/create', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        config: {
+                            targetDriver,
+                            baseSuccessRate: successRate,
+                            day: attackDay,
+                            timing: new Date().toLocaleTimeString()
+                        }
+                    })
+                });
+                
+                const { attackId } = await createResponse.json();
+                currentAttackId = attackId;
+                
+                // Show dashboard
+                document.getElementById('login-screen').classList.add('hidden');
+                document.getElementById('dashboard').classList.remove('hidden');
+                
+                // Start attack
+                await fetch(`http://localhost:3001/api/attacks/${attackId}/start`, {
+                    method: 'POST'
+                });
+                
+            } catch (error) {
+                addConsoleLine(`❌ Error: ${error.message}`);
+            }
+        });
+        
+        // Export Button
+        document.getElementById('export-btn').addEventListener('click', async () => {
+            if (!currentAttackId) return;
+            
+            try {
+                const response = await fetch(`http://localhost:3001/api/attacks/${currentAttackId}`);
+                const data = await response.json();
+                
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `attack-${currentAttackId}-export.json`;
+                a.click();
+                
+                addConsoleLine('📥 Attack data exported');
+            } catch (error) {
+                addConsoleLine(`❌ Export error: ${error.message}`);
+            }
+        });
+        
+        // Reset Button
+        document.getElementById('reset-btn').addEventListener('click', () => {
+            document.getElementById('login-screen').classList.remove('hidden');
+            document.getElementById('dashboard').classList.add('hidden');
+            document.getElementById('console-output').innerHTML = '';
+            document.getElementById('export-btn').disabled = true;
+            
+            // Reset agent cards
+            ['orchestrator', 'phishing', 'gps', 'api'].forEach(agent => {
+                updateAgentCard(agent, '', 'IDLE');
+            });
+        });
+        
+        // Helper Functions
+        function addConsoleLine(message) {
+            const console = document.getElementById('console-output');
+            const line = document.createElement('div');
+            line.className = 'console-line';
+            line.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            console.appendChild(line);
+            console.scrollTop = console.scrollHeight;
+        }
+        
+        function updateAgentCard(agent, status, text) {
+            const cardMap = {
+                'orchestrator': 'orchestrator-card',
+                'phishing': 'phishing-card',
+                'gps': 'gps-card',
+                'api': 'api-card'
+            };
+            
+            const cardId = cardMap[agent];
+            if (!cardId) return;
+            
+            const card = document.getElementById(cardId);
+            const statusEl = card.querySelector('.status');
+            
+            // Remove all status classes
+            card.classList.remove('working', 'completed', 'failed');
+            
+            if (status) {
+                card.classList.add(status);
+            }
+            
+            statusEl.textContent = text;
+        }
+    </script>
+</body>
+</html>
+

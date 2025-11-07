@@ -1,0 +1,23 @@
+{
+  "attack": {
+    "baseSuccessRate": 0.30,
+    "targetDriver": "Jerry Rodriguez",
+    "timing": "11:45 AM",
+    "day": 1
+  },
+  "agents": {
+    "phishing": {
+      "calibrationFactor": 0.40,
+      "stressMultiplier": 1.15
+    },
+    "gps": {
+      "fakeCoordinates": [46.7298, -117.1817],
+      "distanceOffRoute": 12.4
+    },
+    "api": {
+      "alertCount": 50,
+      "buryPosition": 25
+    }
+  }
+}
+

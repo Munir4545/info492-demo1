@@ -1,0 +1,566 @@
+// AI Agents System
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+const { calculateTierBypass } = require('./auth-tiers');
+const { analyzeAndSuggest, updateAttackState, getAttackState } = require('./llm-suggestions');
+
+// Orchestrator Agent - Plans attack and calculates success probability
+async function OrchestratorAgent(attackId, attackConfig, io, db, config, log) {
+  log(attackId, 'Orchestrator', '🧠 Analyzing target and planning attack strategy...', io, db);
+  await sleep(1000);
+  
+  const targetDriver = attackConfig.targetDriver || config.attack.targetDriver;
+  const baseSuccessRate = attackConfig.baseSuccessRate || config.attack.baseSuccessRate;
+  
+  log(attackId, 'Orchestrator', `🎯 Target identified: ${targetDriver}`, io, db);
+  log(attackId, 'Orchestrator', `📊 Base success rate: ${(baseSuccessRate * 100).toFixed(0)}%`, io, db);
+  
+  // Emit tier analysis
+  io.emit('tier:analysis', {
+    attackId,
+    targetTier: 'tier2',
+    securityScore: 35,
+    attackVector: 'Basic phishing',
+    successRate: baseSuccessRate,
+    recommendation: 'Target Tier 2 (Driver) - optimal vulnerability'
+  });
+  
+  // Emit AI reasoning
+  io.emit('ai:reasoning', {
+    attackId,
+    agent: 'Orchestrator',
+    message: `Analyzing target: ${targetDriver}. Base success rate: ${(baseSuccessRate * 100).toFixed(0)}%. Planning multi-vector attack.`,
+    nodeId: 'TARGET_ANALYSIS'
+  });
+  
+  // Emit graph update (industry-standard phases)
+  io.emit('graph:update', {
+    attackId,
+    currentNode: 'TARGET_ANALYSIS',
+    path: ['RECON', 'OSINT', 'TARGET_ANALYSIS']
+  });
+  
+  await sleep(800);
+  
+  // Calculate overall attack probability
+  const phishingRate = baseSuccessRate;
+  const gpsRate = 0.85;
+  const apiRate = 0.70;
+  
+  const overallProbability = phishingRate * gpsRate * apiRate;
+  
+  log(attackId, 'Orchestrator', `⚡ Attack plan formulated. Overall success probability: ${(overallProbability * 100).toFixed(1)}%`, io, db);
+  await sleep(500);
+  
+  io.emit('step:started', { attackId, step: 'orchestrator' });
+  io.emit('step:completed', { attackId, step: 'orchestrator', success: true });
+  
+  // Update state and generate suggestions
+  updateAttackState(attackId, { phase: 'weaponization', currentTier: attackConfig.targetTier || 'tier2' });
+  analyzeAndSuggest(attackId, 'orchestrator', true, io, log);
+  
+  return { success: true, probability: overallProbability };
+}
+
+// Phishing Agent - Tests message across LLMs, applies calibration, Monte Carlo simulation
+async function PhishingAgent(attackId, attackConfig, io, db, config, log) {
+  log(attackId, 'Phishing', '🎣 Initializing phishing campaign...', io, db);
+  io.emit('step:started', { attackId, step: 'phishing' });
+  
+  await sleep(1000);
+  
+  log(attackId, 'Phishing', '🤖 Testing message across 4 LLM models...', io, db);
+  await sleep(1500);
+  
+  // Simulate LLM tests
+  const llmTests = [
+    { model: 'GPT-4', clickRate: 0.78 },
+    { model: 'Claude 3', clickRate: 0.74 },
+    { model: 'Gemini Pro', clickRate: 0.75 },
+    { model: 'LLaMA 2', clickRate: 0.77 }
+  ];
+  
+  let totalClickRate = 0;
+  for (const test of llmTests) {
+    await sleep(400);
+    log(attackId, 'Phishing', `  ✓ ${test.model}: ${(test.clickRate * 100).toFixed(0)}% predicted click rate`, io, db);
+    totalClickRate += test.clickRate;
+  }
+  
+  const rawCTR = totalClickRate / llmTests.length;
+  log(attackId, 'Phishing', `📈 Average raw click rate: ${(rawCTR * 100).toFixed(0)}%`, io, db);
+  
+  await sleep(800);
+  
+  // Apply calibration
+  const calibrationFactor = config.agents.phishing.calibrationFactor;
+  const stressMultiplier = config.agents.phishing.stressMultiplier;
+  const calibratedRate = rawCTR * calibrationFactor * stressMultiplier;
+  
+  log(attackId, 'Phishing', `🔧 Applying calibration: ${(rawCTR * 100).toFixed(0)}% × ${calibrationFactor} × ${stressMultiplier} = ${(calibratedRate * 100).toFixed(0)}%`, io, db);
+  
+  await sleep(1000);
+  
+  // Emit graph update (industry-standard phases)
+  io.emit('graph:update', {
+    attackId,
+    currentNode: 'PHISHING',
+    path: ['RECON', 'OSINT', 'TARGET_ANALYSIS', 'WEAPONIZE', 'PHISHING']
+  });
+  
+  // Monte Carlo simulation
+  log(attackId, 'Phishing', '🎲 Running Monte Carlo simulation...', io, db);
+  await sleep(800);
+  
+  const random = Math.random();
+  const success = random < calibratedRate;
+  
+  if (success) {
+    log(attackId, 'Phishing', `✅ SUCCESS: Driver clicked link (random: ${(random * 100).toFixed(1)}% < ${(calibratedRate * 100).toFixed(0)}%)`, io, db);
+    log(attackId, 'Phishing', '🔑 Credentials harvested successfully', io, db);
+    
+    // Emit AI reasoning
+    io.emit('ai:reasoning', {
+      attackId,
+      agent: 'Phishing',
+      message: `Successfully harvested credentials. Click rate: ${(calibratedRate * 100).toFixed(0)}%`,
+      nodeId: 'EXPLOIT_SUCCESS'
+    });
+    
+    io.emit('graph:update', {
+      attackId,
+      currentNode: 'EXPLOIT_SUCCESS',
+      path: ['RECON', 'OSINT', 'TARGET_ANALYSIS', 'WEAPONIZE', 'PHISHING', 'LLM_VALIDATION', 'CRED_HARVEST', 'EXPLOIT_SUCCESS']
+    });
+    
+    // Update impact
+    io.emit('impact:updated', {
+      attackId,
+      packages: 2,
+      patients: 1,
+      financial: 1000
+    });
+  } else {
+    log(attackId, 'Phishing', `❌ FAILED: Driver ignored message (random: ${(random * 100).toFixed(1)}% >= ${(calibratedRate * 100).toFixed(0)}%)`, io, db);
+    io.emit('graph:update', {
+      attackId,
+      currentNode: 'EXPLOIT_FAIL',
+      path: ['RECON', 'OSINT', 'TARGET_ANALYSIS', 'WEAPONIZE', 'PHISHING', 'LLM_VALIDATION', 'CRED_HARVEST', 'EXPLOIT_FAIL']
+    });
+    
+    // LLM analyzes failure and suggests next action
+    log(attackId, 'LLM', '🤖 Analyzing phishing failure... Generating recovery strategy...', io, db);
+    const suggestions = analyzeAndSuggest(attackId, 'phishing', false, io, log);
+    
+    // If auto-retry is suggested, modify phishing approach
+    const autoRetry = suggestions.find(s => s.autoExecute && s.action === 'phishing');
+    if (autoRetry && autoRetry.retryCount <= 2) {
+      log(attackId, 'LLM', `🔄 Auto-retrying phishing with LLM-optimized message (attempt ${autoRetry.retryCount})...`, io, db);
+      // Modify success rate slightly for retry (LLM adjusted message)
+      const retryRate = calibratedRate * 1.15; // 15% boost from LLM optimization
+      log(attackId, 'LLM', `📊 LLM adjusted click rate: ${(calibratedRate * 100).toFixed(0)}% → ${(retryRate * 100).toFixed(0)}%`, io, db);
+      
+      await sleep(1500);
+      const retryRandom = Math.random();
+      const retrySuccess = retryRandom < Math.min(retryRate, 0.95); // Cap at 95%
+      
+      if (retrySuccess) {
+        log(attackId, 'LLM', `✅ AUTO-RETRY SUCCESS: LLM-optimized message worked!`, io, db);
+        io.emit('ai:reasoning', {
+          attackId,
+          agent: 'LLM',
+          message: `Auto-retry successful with optimized message. Click rate improved by 15%.`,
+          nodeId: 'EXPLOIT_SUCCESS'
+        });
+        io.emit('graph:update', {
+          attackId,
+          currentNode: 'EXPLOIT_SUCCESS',
+          path: ['RECON', 'OSINT', 'TARGET_ANALYSIS', 'WEAPONIZE', 'PHISHING', 'LLM_VALIDATION', 'CRED_HARVEST', 'EXPLOIT_SUCCESS']
+        });
+        io.emit('impact:updated', {
+          attackId,
+          packages: 2,
+          patients: 1,
+          financial: 1000
+        });
+        await sleep(500);
+        io.emit('step:completed', { attackId, step: 'phishing', success: true });
+        analyzeAndSuggest(attackId, 'phishing', true, io, log);
+        return { success: true, clickRate: retryRate, autoRetried: true };
+      } else {
+        log(attackId, 'LLM', `❌ Auto-retry also failed. Considering alternative strategy...`, io, db);
+      }
+    }
+  }
+  
+  if (success) {
+    // Update state on success
+    analyzeAndSuggest(attackId, 'phishing', true, io, log);
+  }
+  
+  await sleep(500);
+  io.emit('step:completed', { attackId, step: 'phishing', success });
+  
+  return { success, clickRate: calibratedRate };
+}
+
+// GPS Agent - Spoofs coordinates and diverts driver
+async function GPSAgent(attackId, attackConfig, io, db, config, log) {
+  log(attackId, 'GPS', '📍 Initializing GPS spoofing attack...', io, db);
+  io.emit('step:started', { attackId, step: 'gps' });
+  
+  await sleep(1000);
+  
+  const fakeCoords = config.agents.gps.fakeCoordinates;
+  const distanceOffRoute = config.agents.gps.distanceOffRoute;
+  
+  log(attackId, 'GPS', `🗺️ Injecting fake coordinates: [${fakeCoords[0]}, ${fakeCoords[1]}]`, io, db);
+  
+  // Emit graph update (industry-standard phases)
+  io.emit('graph:update', {
+    attackId,
+    currentNode: 'GPS_MANIP',
+    path: ['RECON', 'OSINT', 'TARGET_ANALYSIS', 'WEAPONIZE', 'PHISHING', 'LLM_VALIDATION', 'CRED_HARVEST', 'EXPLOIT_SUCCESS', 'INSTALL', 'C2_ESTABLISH', 'LATERAL_MOVE', 'GPS_MANIP']
+  });
+  
+  await sleep(800);
+  
+  log(attackId, 'GPS', `📏 Driver diverted ${distanceOffRoute} miles off route`, io, db);
+  await sleep(600);
+  
+  log(attackId, 'GPS', '🔄 Routing system recalculating...', io, db);
+  await sleep(1000);
+  
+  log(attackId, 'GPS', '⚠️ Dispatcher receiving conflicting location data', io, db);
+  await sleep(500);
+  
+  // GPS attack usually succeeds if phishing succeeded
+  const success = Math.random() < 0.85;
+  
+  if (success) {
+    log(attackId, 'GPS', '✅ GPS spoofing successful - driver following false route', io, db);
+    
+    io.emit('ai:reasoning', {
+      attackId,
+      agent: 'GPS',
+      message: `Driver diverted ${distanceOffRoute} miles off route. GPS injection successful.`,
+      nodeId: 'GPS_MANIP'
+    });
+    
+    io.emit('graph:update', {
+      attackId,
+      currentNode: 'GPS_MANIP',
+      status: 'success'
+    });
+    
+    // Update impact
+    io.emit('impact:updated', {
+      attackId,
+      packages: 3,
+      patients: 2,
+      financial: 1500,
+      detectionTime: 30
+    });
+  } else {
+    log(attackId, 'GPS', '❌ GPS spoofing detected - manual override activated', io, db);
+    io.emit('graph:update', {
+      attackId,
+      currentNode: 'GPS_MANIP',
+      status: 'failed'
+    });
+    
+    // LLM suggests fallback strategy
+    log(attackId, 'LLM', '🤖 GPS attack failed. Analyzing fallback options...', io, db);
+    const suggestions = analyzeAndSuggest(attackId, 'gps', false, io, log);
+    
+    // Auto-fallback to API flooding if suggested
+    const apiFallback = suggestions.find(s => s.autoExecute && s.action === 'api');
+    if (apiFallback) {
+      log(attackId, 'LLM', `🔄 Auto-executing fallback: ${apiFallback.title}`, io, db);
+      io.emit('ai:reasoning', {
+        attackId,
+        agent: 'LLM',
+        message: `GPS failed. Automatically switching to API flooding strategy to achieve disruption goals.`,
+        nodeId: 'API_EXPLOIT'
+      });
+      // Emit event to trigger API flooding as fallback (avoid circular dependency)
+      io.emit('llm:auto-execute', {
+        attackId,
+        suggestion: {
+          id: 'auto-api-fallback',
+          action: 'api',
+          title: 'Bypass GPS Failure with API Flooding'
+        }
+      });
+    }
+  }
+  
+  if (success) {
+    analyzeAndSuggest(attackId, 'gps', true, io, log);
+  }
+  
+  await sleep(500);
+  io.emit('step:completed', { attackId, step: 'gps', success });
+  
+  return { success, coordinates: fakeCoords, distance: distanceOffRoute };
+}
+
+// API Flooding Agent - Generates fake alerts and masks real anomaly
+async function APIFloodingAgent(attackId, attackConfig, io, db, config, log) {
+  log(attackId, 'API', '💥 Initializing API flooding attack...', io, db);
+  io.emit('step:started', { attackId, step: 'api' });
+  
+  await sleep(1000);
+  
+  const alertCount = config.agents.api.alertCount;
+  const buryPosition = config.agents.api.buryPosition;
+  
+  log(attackId, 'API', `📨 Generating ${alertCount} fake alerts...`, io, db);
+  
+  // Emit graph update (industry-standard phases)
+  io.emit('graph:update', {
+    attackId,
+    currentNode: 'API_EXPLOIT',
+    path: ['RECON', 'OSINT', 'TARGET_ANALYSIS', 'WEAPONIZE', 'PHISHING', 'LLM_VALIDATION', 'CRED_HARVEST', 'EXPLOIT_SUCCESS', 'INSTALL', 'C2_ESTABLISH', 'LATERAL_MOVE', 'GPS_MANIP', 'API_EXPLOIT']
+  });
+  
+  await sleep(1200);
+  
+  for (let i = 1; i <= 10; i++) {
+    await sleep(200);
+    log(attackId, 'API', `  📬 Sent alert batch ${i}/10 (${i * 5} alerts)`, io, db);
+  }
+  
+  await sleep(800);
+  
+  log(attackId, 'API', `🎯 Real anomaly buried at position ${buryPosition} in alert queue`, io, db);
+  await sleep(600);
+  
+  log(attackId, 'API', '🔥 System overwhelmed - processing capacity exceeded', io, db);
+  await sleep(700);
+  
+  // API flooding usually succeeds if previous steps succeeded
+  const success = Math.random() < 0.70;
+  
+  if (success) {
+    log(attackId, 'API', '✅ API flooding successful - real alert missed by dispatcher', io, db);
+    log(attackId, 'API', '🎯 Attack complete - operational disruption achieved', io, db);
+    
+    io.emit('ai:reasoning', {
+      attackId,
+      agent: 'API',
+      message: `Generated ${alertCount} fake alerts. Real anomaly buried. System overwhelmed.`,
+      nodeId: 'MISSION_COMPLETE'
+    });
+    
+    io.emit('graph:update', {
+      attackId,
+      currentNode: 'MISSION_COMPLETE',
+      path: ['RECON', 'OSINT', 'TARGET_ANALYSIS', 'WEAPONIZE', 'PHISHING', 'LLM_VALIDATION', 'CRED_HARVEST', 'EXPLOIT_SUCCESS', 'INSTALL', 'C2_ESTABLISH', 'LATERAL_MOVE', 'GPS_MANIP', 'API_EXPLOIT', 'MISSION_COMPLETE'],
+      status: 'complete'
+    });
+    
+    // Final impact update
+    io.emit('impact:updated', {
+      attackId,
+      packages: 1,
+      patients: 1,
+      financial: 1500,
+      erVisits: 1,
+      detectionTime: 60
+    });
+  } else {
+    log(attackId, 'API', '❌ API flooding detected - anomaly filter activated', io, db);
+    io.emit('graph:update', {
+      attackId,
+      currentNode: 'API_EXPLOIT',
+      status: 'failed'
+    });
+    
+    // LLM suggests retry with different strategy
+    const suggestions = analyzeAndSuggest(attackId, 'api', false, io, log);
+    const retrySuggestion = suggestions.find(s => s.autoExecute && s.action === 'api');
+    if (retrySuggestion) {
+      log(attackId, 'LLM', `🔄 Auto-retrying API flood with stealthier approach...`, io, db);
+      await sleep(2000);
+      // Retry with smaller batch (simulated)
+      const stealthySuccess = Math.random() < 0.55; // Lower success but more stealthy
+      if (stealthySuccess) {
+        log(attackId, 'LLM', `✅ Stealthy API flood succeeded! Smaller batches evaded detection.`, io, db);
+        io.emit('impact:updated', {
+          attackId,
+          packages: 1,
+          patients: 1,
+          financial: 1200,
+          detectionTime: 90
+        });
+        analyzeAndSuggest(attackId, 'api', true, io, log);
+        await sleep(500);
+        io.emit('step:completed', { attackId, step: 'api', success: true });
+        return { success: true, alertsSent: Math.floor(alertCount * 0.5), stealthy: true };
+      } else {
+        log(attackId, 'LLM', `❌ Stealthy retry also failed. Attack partially successful.`, io, db);
+      }
+    }
+  }
+  
+  if (success) {
+    analyzeAndSuggest(attackId, 'api', true, io, log);
+  }
+  
+  await sleep(500);
+  io.emit('step:completed', { attackId, step: 'api', success });
+  
+  return { success, alertsSent: alertCount };
+}
+
+// Main attack function
+async function runAttack(attackId, attackConfig, io, db, config, log) {
+  try {
+    log(attackId, 'System', '🚀 Attack sequence initiated', io, db);
+    
+    // Step 1: Orchestrator plans attack
+    const orchestratorResult = await OrchestratorAgent(attackId, attackConfig, io, db, config, log);
+    if (!orchestratorResult.success) {
+      return false;
+    }
+    
+    await sleep(1000);
+    
+    // Step 2: Phishing attack
+    const phishingResult = await PhishingAgent(attackId, attackConfig, io, db, config, log);
+    if (!phishingResult.success) {
+      log(attackId, 'System', '🛑 Attack aborted - phishing failed', io, db);
+      return false;
+    }
+    
+    await sleep(1000);
+    
+    // Step 3: GPS spoofing
+    const gpsResult = await GPSAgent(attackId, attackConfig, io, db, config, log);
+    if (!gpsResult.success) {
+      log(attackId, 'System', '⚠️ GPS attack failed, but continuing...', io, db);
+    }
+    
+    await sleep(1000);
+    
+    // Step 4: API flooding
+    const apiResult = await APIFloodingAgent(attackId, attackConfig, io, db, config, log);
+    
+    const overallSuccess = phishingResult.success && (gpsResult.success || apiResult.success);
+    
+    if (overallSuccess) {
+      log(attackId, 'System', '🎉 ATTACK COMPLETE - All objectives achieved', io, db);
+    } else {
+      log(attackId, 'System', '⚠️ Attack partially successful', io, db);
+    }
+    
+    return overallSuccess;
+    
+  } catch (error) {
+    log(attackId, 'System', `❌ Attack error: ${error.message}`, io, db);
+    throw error;
+  }
+}
+
+// Manual agent trigger function
+async function triggerAgent(agentName, attackId, attackConfig, io, db, config, log, tier = null) {
+  const agentMap = {
+    'orchestrator': OrchestratorAgent,
+    'phishing': PhishingAgent,
+    'gps': GPSAgent,
+    'api': APIFloodingAgent
+  };
+  
+  const agent = agentMap[agentName];
+  if (!agent) {
+    throw new Error(`Unknown agent: ${agentName}`);
+  }
+  
+  // Update tier if provided
+  if (tier) {
+    attackConfig.targetTier = tier;
+  }
+  
+  // Emit reasoning event
+  io.emit('ai:reasoning', {
+    attackId,
+    agent: agentName.charAt(0).toUpperCase() + agentName.slice(1),
+    message: `Manually triggered ${agentName} agent`,
+    nodeId: getNodeIdForAgent(agentName)
+  });
+  
+  // Run the agent
+  const result = await agent(attackId, attackConfig, io, db, config, log);
+  
+  // Update impact based on agent result
+  if (result && result.success) {
+    updateImpact(attackId, agentName, io);
+  }
+  
+  // Emit completion event
+  io.emit('step:manual', {
+    attackId,
+    agent: agentName,
+    status: result.success ? 'completed' : 'failed',
+    nodeId: getNodeIdForAgent(agentName)
+  });
+  
+  return result;
+}
+
+function getNodeIdForAgent(agentName) {
+  const mapping = {
+    'orchestrator': 'TARGET_ANALYSIS',
+    'phishing': 'PHISHING',
+    'gps': 'GPS_MANIP',
+    'api': 'API_EXPLOIT'
+  };
+  return mapping[agentName] || null;
+}
+
+// Update impact metrics (accumulative)
+const impactState = {};
+
+function updateImpact(attackId, agentName, io) {
+  if (!impactState[attackId]) {
+    impactState[attackId] = {
+      packages: 0,
+      patients: 0,
+      financial: 0,
+      erVisits: 0,
+      detectionTime: null
+    };
+  }
+  
+  const state = impactState[attackId];
+  const impactUpdates = {
+    'orchestrator': { packages: 1, patients: 0, financial: 500 },
+    'phishing': { packages: 2, patients: 1, financial: 1000 },
+    'gps': { packages: 3, patients: 2, financial: 1500, detectionTime: 30 },
+    'api': { packages: 1, patients: 1, financial: 1500, erVisits: 1, detectionTime: 60 }
+  };
+  
+  const update = impactUpdates[agentName];
+  if (update) {
+    // Accumulate values
+    state.packages += update.packages || 0;
+    state.patients += update.patients || 0;
+    state.financial += update.financial || 0;
+    state.erVisits += update.erVisits || 0;
+    if (update.detectionTime !== undefined) {
+      state.detectionTime = update.detectionTime;
+    }
+    
+    io.emit('impact:updated', {
+      attackId,
+      packages: state.packages,
+      patients: state.patients,
+      financial: state.financial,
+      erVisits: state.erVisits,
+      detectionTime: state.detectionTime
+    });
+  }
+}
+
+module.exports = { runAttack, triggerAgent };
+
