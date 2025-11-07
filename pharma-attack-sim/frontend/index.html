@@ -526,18 +526,8 @@
                     <div id="user-display" class="text-sm text-slate-500"></div>
                 </div>
                 
-                <!-- Tab Navigation -->
-                <div class="flex gap-2 border-b border-slate-200">
-                    <button id="tab-live" class="tab-btn active">
-                        <span>🎯</span> Live Attack
-                    </button>
-                    <button id="tab-history" class="tab-btn">
-                        <span>📊</span> History & Analytics
-                    </button>
-                </div>
-                
-                <!-- Live Attack Tab -->
-                <div id="content-live" class="tab-content active space-y-8">
+                <!-- Main Dashboard (No Tabs) -->
+                <div id="content-live" class="space-y-8">
                 <!-- Agent Cards -->
                 <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
                     <div id="orchestrator-card" class="agent-card">
@@ -565,6 +555,37 @@
                     </div>
                 </div>
                 
+                <!-- Interactive Delivery Map -->
+                <div class="panel p-6">
+                    <h3 class="font-bold text-lg text-slate-800 mb-4">📍 Real-Time Interactive Delivery Map</h3>
+                    <div class="text-sm text-slate-600 mb-3">Click on delivery markers to see details</div>
+                    <div id="delivery-map" class="bg-slate-50 rounded-lg p-6 min-h-[400px] relative border border-slate-200">
+                        <div id="map-placeholder" class="text-slate-500 text-center py-20">Delivery map visualization - No affected deliveries yet</div>
+                        <svg id="map-paths" class="absolute inset-0 pointer-events-none"></svg>
+                        <div id="map-markers" class="absolute inset-0"></div>
+                        <div id="map-details" class="absolute bottom-4 left-4 right-4 hidden">
+                            <div class="bg-white rounded-lg shadow-xl p-4 border border-slate-200">
+                                <div class="flex items-center justify-between mb-2">
+                                    <h4 class="font-bold text-slate-800" id="map-detail-title">Delivery Details</h4>
+                                    <button id="map-detail-close" class="text-slate-400 hover:text-slate-600">✕</button>
+                                </div>
+                                <div id="map-detail-content" class="text-sm text-slate-600 space-y-1"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- LLM Suggestions & Human Loop -->
+                <div class="panel p-6 space-y-4">
+                    <div class="flex items-center justify-between">
+                        <h3 class="font-bold text-lg text-slate-800">🤖 LLM Recommendations & Human Oversight</h3>
+                        <span id="suggestion-updated" class="text-xs text-slate-400"></span>
+                    </div>
+                    <div id="suggestion-list" class="space-y-3">
+                        <div class="text-slate-400 text-sm">No LLM recommendations yet. Launch an attack to see live guidance.</div>
+                    </div>
+                </div>
+                
                 <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
                     <div class="console-panel">
                         <div class="font-bold uppercase tracking-[0.32em] text-xs">Live Console</div>
@@ -579,6 +600,71 @@
                     </div>
                 </div>
                 
+                <!-- Urgency Indicators -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="panel p-4">
+                        <div class="flex items-center justify-between p-3 bg-red-50 border border-red-200 rounded-lg">
+                            <div>
+                                <div class="font-semibold text-red-800">Insulin Delivery</div>
+                                <div class="text-sm text-red-600">High Priority</div>
+                                <div class="text-xs text-red-500 mt-1" id="insulin-count">0 affected</div>
+                            </div>
+                            <div class="text-2xl">⚠️</div>
+                        </div>
+                    </div>
+                    <div class="panel p-4">
+                        <div class="flex items-center justify-between p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                            <div>
+                                <div class="font-semibold text-amber-800">Cardiac Medication</div>
+                                <div class="text-sm text-amber-600">Medium Priority</div>
+                                <div class="text-xs text-amber-500 mt-1" id="cardiac-count">0 affected</div>
+                            </div>
+                            <div class="text-2xl">⚡</div>
+                        </div>
+                    </div>
+                    <div class="panel p-4">
+                        <div class="flex items-center justify-between p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                            <div>
+                                <div class="font-semibold text-blue-800">Routine Prescriptions</div>
+                                <div class="text-sm text-blue-600">Standard Priority</div>
+                                <div class="text-xs text-blue-500 mt-1" id="routine-count">0 affected</div>
+                            </div>
+                            <div class="text-2xl">📦</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Financial Impact Counter -->
+                <div class="panel p-6">
+                    <h3 class="font-bold text-lg text-slate-800 mb-4">💰 Real-Time Impact</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div class="stat-card">
+                            <div class="stat-value text-red-600" id="impact-financial">$0</div>
+                            <div class="stat-label">Financial Loss</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="impact-deliveries">0</div>
+                            <div class="stat-label">Deliveries Affected</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value text-amber-600" id="impact-patients">0</div>
+                            <div class="stat-label">Patients Impacted</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value text-blue-600" id="impact-operational">0%</div>
+                            <div class="stat-label">Operational Disruption</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Cascading Failure Visualization -->
+                <div class="panel p-6">
+                    <h3 class="font-bold text-lg text-slate-800 mb-4">🌐 Cascading Failure Network</h3>
+                    <div id="cascade-visualization" class="space-y-3">
+                        <div id="cascade-nodes" class="space-y-2"></div>
+                    </div>
+                </div>
+                
                 <div id="human-loop-panel" class="panel">
                     <div class="flex items-center justify-between mb-3">
                         <div class="font-semibold text-slate-700">Human-in-the-Loop Queue</div>
@@ -587,6 +673,7 @@
                     <div id="hil-list" class="space-y-3 text-sm"></div>
             </div>
                 
+<<<<<<< Updated upstream
                 <!-- Route Progress Visualization -->
                 <div class="panel p-6">
                     <div class="flex items-center justify-between mb-4">
@@ -629,10 +716,44 @@
                                 <div class="flex items-center gap-1">
                                     <div class="w-20 h-1 bg-red-500 transform rotate-12 origin-left"></div>
                                     <span class="text-xs text-red-600 font-bold">⚠️ DIVERTED</span>
+=======
+                <!-- Attack Summary (Shows at end of attack) -->
+                <div id="attack-summary" class="hidden space-y-8">
+                    <div class="panel p-6 bg-gradient-to-r from-slate-50 to-blue-50 border-2 border-blue-200">
+                        <h3 class="font-bold text-2xl text-slate-800 mb-6">📊 Attack Summary</h3>
+                        
+                        <!-- Success Metrics -->
+                        <div class="mb-6">
+                            <h4 class="font-bold text-lg text-slate-700 mb-4">Attack Success Metrics</h4>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <div class="flex items-center justify-between mb-2">
+                                        <span class="text-sm font-medium text-slate-600">Deliveries Compromised</span>
+                                        <span class="text-lg font-bold text-red-600" id="summary-compromised-pct">0%</span>
+                                    </div>
+                                    <div class="w-full bg-slate-200 rounded-full h-4">
+                                        <div id="summary-compromised-bar" class="bg-red-600 h-4 rounded-full transition-all duration-500" style="width: 0%"></div>
+                                    </div>
+                                    <div class="text-xs text-slate-500 mt-1">
+                                        <span id="summary-compromised-count">0</span> of <span id="summary-total-deliveries">0</span> deliveries
+                                    </div>
+                                </div>
+                                
+                                <div>
+                                    <div class="flex items-center justify-between mb-2">
+                                        <span class="text-sm font-medium text-slate-600">Recovery Time Estimate</span>
+                                        <span class="text-lg font-bold text-amber-600" id="summary-recovery-time">0 min</span>
+                                    </div>
+                                    <div class="text-sm text-slate-600 mt-2">
+                                        <div>Detection: <span id="summary-detection-time">0 min</span></div>
+                                        <div>Impact: <span id="summary-impact-time">0 min</span></div>
+                                    </div>
+>>>>>>> Stashed changes
                                 </div>
                             </div>
                         </div>
                         
+<<<<<<< Updated upstream
                         <!-- Progress Info -->
                         <div class="flex items-center justify-between mt-3 text-xs text-slate-600">
                             <div>
@@ -751,10 +872,70 @@
                                 <span class="text-xs font-semibold text-slate-700">Failed Deliveries</span>
                             </div>
                             <div class="text-sm font-bold text-red-600" id="failed-deliveries">0 Attempts</div>
+=======
+                        <!-- Attack Vector Effectiveness -->
+                        <div class="mb-6">
+                            <h4 class="font-bold text-lg text-slate-700 mb-4">Attack Vector Effectiveness</h4>
+                            <div id="summary-vector-comparison" class="space-y-4">
+                                <div>
+                                    <div class="flex items-center justify-between mb-1">
+                                        <span class="text-sm font-medium text-slate-700">Phishing</span>
+                                        <span class="text-sm font-bold text-slate-800" id="summary-vector-phishing">0%</span>
+                                    </div>
+                                    <div class="w-full bg-slate-200 rounded-full h-3">
+                                        <div id="summary-vector-phishing-bar" class="bg-blue-600 h-3 rounded-full transition-all" style="width: 0%"></div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div class="flex items-center justify-between mb-1">
+                                        <span class="text-sm font-medium text-slate-700">GPS Spoofing</span>
+                                        <span class="text-sm font-bold text-slate-800" id="summary-vector-gps">0%</span>
+                                    </div>
+                                    <div class="w-full bg-slate-200 rounded-full h-3">
+                                        <div id="summary-vector-gps-bar" class="bg-green-600 h-3 rounded-full transition-all" style="width: 0%"></div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div class="flex items-center justify-between mb-1">
+                                        <span class="text-sm font-medium text-slate-700">API Flooding</span>
+                                        <span class="text-sm font-bold text-slate-800" id="summary-vector-api">0%</span>
+                                    </div>
+                                    <div class="w-full bg-slate-200 rounded-full h-3">
+                                        <div id="summary-vector-api-bar" class="bg-purple-600 h-3 rounded-full transition-all" style="width: 0%"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Patient Impact Summary -->
+                        <div>
+                            <h4 class="font-bold text-lg text-slate-700 mb-4">💔 Patient Impact Summary</h4>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                                <div class="stat-card bg-red-50 border-red-200">
+                                    <div class="stat-value text-red-600" id="summary-patients">0</div>
+                                    <div class="stat-label">Patients Affected</div>
+                                </div>
+                                <div class="stat-card bg-amber-50 border-amber-200">
+                                    <div class="stat-value text-amber-600" id="summary-critical">0</div>
+                                    <div class="stat-label">Critical Medications</div>
+                                </div>
+                                <div class="stat-card bg-blue-50 border-blue-200">
+                                    <div class="stat-value text-blue-600" id="summary-delays">0</div>
+                                    <div class="stat-label">Hours Delayed</div>
+                                </div>
+                            </div>
+                            
+                            <!-- Patient Notifications Summary -->
+                            <div class="bg-slate-50 rounded-lg p-4">
+                                <div class="font-semibold text-slate-700 mb-2">Patient Notifications Sent</div>
+                                <div id="summary-notifications" class="text-sm text-slate-600 space-y-1 max-h-32 overflow-y-auto"></div>
+                            </div>
+>>>>>>> Stashed changes
                         </div>
                     </div>
                 </div>
                 
+<<<<<<< Updated upstream
                 <!-- Impact Visualization Panel -->
                 <div class="panel p-6">
                     <div class="flex items-center justify-between mb-4">
@@ -799,16 +980,18 @@
                     </div>
                 </div>
                 
+=======
+>>>>>>> Stashed changes
                 <div class="flex flex-col md:flex-row md:items-center md:justify-end gap-3">
                     <button id="export-btn" class="primary-btn md:w-auto w-full" disabled>Export Results</button>
                     <button id="reset-btn" class="ghost-btn md:w-auto w-full">Reset</button>
                     <button id="logout-btn" class="secondary-btn md:w-auto w-full">Sign Out</button>
                 </div>
                 </div>
-                <!-- End Live Attack Tab -->
+                <!-- End Main Dashboard -->
                 
-                <!-- History & Analytics Tab -->
-                <div id="content-history" class="tab-content space-y-8">
+                <!-- History Tab (Keep for analytics) -->
+                <div id="content-history" class="tab-content space-y-8 hidden">
                     <!-- Statistics Overview -->
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                         <div class="stat-card">
@@ -924,6 +1107,55 @@
         let attackInProgress = false;
         const pendingActions = new Map();
         const llmEntries = [];
+        const suggestionState = {
+            items: [],
+            lastUpdated: null
+        };
+        const mapState = {
+            path: [],
+            driver: null,
+            totalStops: 0
+        };
+        
+        // Impact tracking data
+        const impactData = {
+            deliveries: [],
+            financial: 0,
+            patients: 0,
+            operational: 0,
+            compromised: 0,
+            total: 0
+        };
+        
+        // Metrics tracking
+        const metricsData = {
+            compromisedPct: 0,
+            detectionTime: 0,
+            impactTime: 0,
+            recoveryTime: 0,
+            vectorEffectiveness: {
+                phishing: 0,
+                gps: 0,
+                api: 0
+            }
+        };
+        
+        // Patient experience data
+        const patientData = {
+            notifications: [],
+            failedDeliveries: [],
+            conflictingStatus: [],
+            insulinTimer: 7200, // 2 hours in seconds
+            humanCost: {
+                patients: 0,
+                critical: 0,
+                delays: 0
+            }
+        };
+        
+        let attackStartTime = null;
+        let detectionTime = null;
+        let impactTime = null;
 
         const elements = {
             loginScreen: document.getElementById('login-screen'),
@@ -957,21 +1189,15 @@
             api: 'api-card'
         };
 
-        // Tab switching (Dashboard)
-        document.getElementById('tab-live').addEventListener('click', () => {
-            document.getElementById('tab-live').classList.add('active');
-            document.getElementById('tab-history').classList.remove('active');
-            document.getElementById('content-live').classList.add('active');
-            document.getElementById('content-history').classList.remove('active');
-        });
-
-        document.getElementById('tab-history').addEventListener('click', () => {
-            document.getElementById('tab-history').classList.add('active');
-            document.getElementById('tab-live').classList.remove('active');
-            document.getElementById('content-history').classList.add('active');
-            document.getElementById('content-live').classList.remove('active');
-            loadHistoryData();
-        });
+        // History tab (if needed for analytics view)
+        const historyTab = document.getElementById('tab-history');
+        if (historyTab) {
+            historyTab.addEventListener('click', () => {
+                loadHistoryData();
+                document.getElementById('content-history').classList.remove('hidden');
+                document.getElementById('content-live').classList.add('hidden');
+            });
+        }
 
         // Load history data
         async function loadHistoryData() {
@@ -1255,6 +1481,120 @@
             });
         }
 
+        function renderSuggestions() {
+            const container = document.getElementById('suggestion-list');
+            const updatedLabel = document.getElementById('suggestion-updated');
+            if (!container) return;
+
+            container.innerHTML = '';
+
+            if (!suggestionState.items.length) {
+                container.innerHTML = '<div class="text-slate-400 text-sm">Awaiting LLM analysis. Recommendations will appear here as the attack progresses.</div>';
+                if (updatedLabel) {
+                    updatedLabel.textContent = '';
+                }
+                return;
+            }
+
+            if (updatedLabel && suggestionState.lastUpdated) {
+                updatedLabel.textContent = `Updated ${new Date(suggestionState.lastUpdated).toLocaleTimeString()}`;
+            }
+
+            suggestionState.items.forEach((suggestion) => {
+                const card = document.createElement('div');
+                card.className = 'border border-slate-200 rounded-lg p-4 bg-white shadow-sm';
+
+                const header = document.createElement('div');
+                header.className = 'flex items-center justify-between gap-3 flex-wrap';
+
+                const title = document.createElement('div');
+                title.className = 'font-semibold text-slate-800';
+                title.textContent = suggestion.title || 'Suggested Action';
+
+                const priorityBadge = document.createElement('span');
+                const priorityClassMap = {
+                    critical: 'bg-rose-100 text-rose-700 border-rose-300',
+                    high: 'bg-amber-100 text-amber-700 border-amber-300',
+                    medium: 'bg-sky-100 text-sky-700 border-sky-300',
+                    low: 'bg-slate-100 text-slate-600 border-slate-300'
+                };
+                const badgeClass = priorityClassMap[suggestion.priority] || priorityClassMap.medium;
+                priorityBadge.className = `text-xs font-semibold uppercase tracking-wide px-2 py-1 rounded border ${badgeClass}`;
+                priorityBadge.textContent = suggestion.priority ? suggestion.priority.toUpperCase() : 'GUIDE';
+
+                header.appendChild(title);
+                header.appendChild(priorityBadge);
+
+                const body = document.createElement('div');
+                body.className = 'mt-3 space-y-2 text-sm text-slate-600';
+                const actionLine = document.createElement('div');
+                actionLine.innerHTML = `<strong>Agent:</strong> ${suggestion.action || 'unknown'}${suggestion.target ? ` → ${suggestion.target}` : ''}`;
+                const reasonLine = document.createElement('div');
+                reasonLine.innerHTML = `<strong>Reasoning:</strong> ${suggestion.reason || 'LLM rationale unavailable.'}`;
+                const confidenceLine = document.createElement('div');
+                if (typeof suggestion.confidence === 'number') {
+                    confidenceLine.innerHTML = `<strong>Confidence:</strong> ${(suggestion.confidence * 100).toFixed(0)}%`;
+                }
+                body.appendChild(actionLine);
+                body.appendChild(reasonLine);
+                if (confidenceLine.innerHTML) {
+                    body.appendChild(confidenceLine);
+                }
+
+                const footer = document.createElement('div');
+                footer.className = 'mt-4 flex flex-wrap items-center gap-2';
+
+                if (suggestion.autoExecute) {
+                    const label = document.createElement('span');
+                    label.className = 'text-xs font-medium text-amber-600 bg-amber-100 border border-amber-200 px-2 py-1 rounded';
+                    label.textContent = 'Awaiting human approval';
+                    footer.appendChild(label);
+                }
+
+                const triggerableAgents = new Set(['orchestrator', 'phishing', 'gps', 'api']);
+
+                if (!suggestion.autoExecute && triggerableAgents.has(suggestion.action)) {
+                    const triggerBtn = document.createElement('button');
+                    triggerBtn.className = 'primary-btn text-sm px-4 py-2';
+                    triggerBtn.textContent = 'Trigger Agent';
+                    triggerBtn.addEventListener('click', () => handleSuggestionTrigger(suggestion));
+                    footer.appendChild(triggerBtn);
+                } else if (!suggestion.autoExecute && !triggerableAgents.has(suggestion.action)) {
+                    const infoLabel = document.createElement('span');
+                    infoLabel.className = 'text-xs font-medium text-slate-500 bg-slate-100 border border-slate-200 px-2 py-1 rounded';
+                    infoLabel.textContent = 'Requires analyst decision';
+                    footer.appendChild(infoLabel);
+                }
+
+                const logBtn = document.createElement('button');
+                logBtn.className = 'secondary-btn text-xs px-3 py-1';
+                logBtn.textContent = 'Log to console';
+                logBtn.addEventListener('click', () => {
+                    addConsoleLine(`🤖 LLM Suggestion • ${suggestion.title}: ${suggestion.reason || 'No reason provided'}`);
+                });
+                footer.appendChild(logBtn);
+
+                card.appendChild(header);
+                card.appendChild(body);
+                card.appendChild(footer);
+
+                container.appendChild(card);
+            });
+        }
+
+        async function handleSuggestionTrigger(suggestion) {
+            if (!suggestion || !currentAttackId) return;
+            try {
+                addConsoleLine(`⚙️ Executing suggestion: ${suggestion.title}`);
+                await apiRequest(`/api/agents/${suggestion.action}/trigger`, {
+                    method: 'POST',
+                    body: JSON.stringify({ attackId: currentAttackId })
+                });
+            } catch (error) {
+                addConsoleLine(`❌ Failed to execute suggestion (${suggestion.title}): ${error.message}`);
+            }
+        }
+
         function ingestLLMEntries(attackId, entries = []) {
             entries.forEach(entry => {
                 llmEntries.unshift({
@@ -1298,6 +1638,9 @@
             elements.exportBtn.disabled = true;
             pendingActions.clear();
             llmEntries.length = 0;
+            suggestionState.items = [];
+            suggestionState.lastUpdated = null;
+            renderSuggestions();
             renderPendingActions();
             renderLLMShell();
             resetImpact();
@@ -1616,16 +1959,43 @@
         
         socket.on('attack:started', (data) => {
             currentAttackId = data.attackId;
+            attackStartTime = Date.now();
+            detectionTime = null;
+            impactTime = null;
+            // Reset all tracking data
+            impactData.deliveries = [];
+            impactData.financial = 0;
+            impactData.patients = 0;
+            impactData.operational = 0;
+            impactData.compromised = 0;
+            impactData.total = 10; // Default total deliveries
+            patientData.insulinTimer = 7200; // Reset to 2 hours
+            patientData.notifications = [];
+            patientData.failedDeliveries = [];
+            patientData.conflictingStatus = [];
+            suggestionState.items = [];
+            suggestionState.lastUpdated = null;
+            mapState.path = [];
+            mapState.driver = null;
+            mapState.totalStops = 0;
+            renderSuggestions();
+            updateImpactVisualization();
             addConsoleLine(`🚀 Attack #${data.attackId} started`);
+<<<<<<< Updated upstream
             initializeRoute(); // Start route visualization
             addRouteAlert('🚗 Vehicle departed from distribution center', 'success');
             resetAttackMetrics(); // Initialize attack metrics
             resetPatientExperience(); // Initialize patient experience
+=======
+            startInsulinTimer();
+>>>>>>> Stashed changes
         });
         
         socket.on('attack:completed', (data) => {
             addConsoleLine(`✅ Attack completed. Success: ${data.success}`);
-                elements.exportBtn.disabled = false;
+            elements.exportBtn.disabled = false;
+            // Show attack summary
+            showAttackSummary();
         });
         
         socket.on('attack:failed', (data) => {
@@ -1638,6 +2008,7 @@
                 if (!data || !Array.isArray(data.entries)) return;
                 ingestLLMEntries(data.attackId, data.entries);
             });
+<<<<<<< Updated upstream
             socket.on('impact:updated', updateImpact);
         }
 
@@ -1884,11 +2255,554 @@
                             <div class="flex items-center gap-2 bg-red-100 rounded px-2 py-1">
                                 <span class="text-lg">⏰</span>
                                 <span class="text-xs font-bold text-red-700">Medication needed within ${alert.timeWindow} hours</span>
+=======
+            
+            // Impact visualization events
+            socket.on('impact:updated', (data) => {
+                if (data.attackId !== currentAttackId) return;
+                updateImpactData(data);
+            });
+            
+            socket.on('delivery:route', (data) => {
+                if (data.attackId !== currentAttackId) return;
+                handleDeliveryRoute(data);
+            });
+
+            socket.on('delivery:affected', (data) => {
+                if (data.attackId !== currentAttackId) return;
+                addAffectedDelivery(data);
+            });
+
+            socket.on('delivery:update', (data) => {
+                if (data.attackId !== currentAttackId) return;
+                handleDeliveryUpdate(data);
+            });
+            
+            socket.on('cascade:failure', (data) => {
+                if (data.attackId !== currentAttackId) return;
+                addCascadeFailure(data);
+            });
+            
+            // Metrics events
+            socket.on('metrics:updated', (data) => {
+                if (data.attackId !== currentAttackId) return;
+                updateMetricsData(data);
+            });
+            
+            socket.on('detection:triggered', (data) => {
+                if (data.attackId !== currentAttackId) return;
+                detectionTime = Date.now();
+                updateDetectionMetrics();
+            });
+            
+            // Patient experience events
+            socket.on('patient:notification', (data) => {
+                if (data.attackId !== currentAttackId) return;
+                addPatientNotification(data);
+            });
+            
+            socket.on('delivery:failed', (data) => {
+                if (data.attackId !== currentAttackId) return;
+                addFailedDelivery(data);
+            });
+            
+            socket.on('status:conflict', (data) => {
+                if (data.attackId !== currentAttackId) return;
+                addStatusConflict(data);
+            });
+
+            socket.on('llm:suggestion', (data) => {
+                if (data.attackId !== currentAttackId) return;
+                suggestionState.items = data.suggestions || [];
+                suggestionState.lastUpdated = Date.now();
+                renderSuggestions();
+            });
+
+            socket.on('llm:auto-execute', (data) => {
+                if (data.attackId !== currentAttackId) return;
+                addConsoleLine(`🤖 Auto-executing approved suggestion: ${data.suggestion?.title || data.suggestion?.action}`);
+            });
+        }
+        
+        // Impact Visualization Functions
+        function updateImpactData(data) {
+            if (typeof data.financial === 'number') impactData.financial += data.financial;
+            if (typeof data.patients === 'number') impactData.patients += data.patients;
+            if (typeof data.packages === 'number') impactData.compromised += data.packages;
+            if (typeof data.operational === 'number') impactData.operational = data.operational;
+            updateImpactVisualization();
+        }
+        
+        function addAffectedDelivery(data) {
+            const id = data.deliveryId || Math.random().toString(36).substr(2, 9);
+            const existing = impactData.deliveries.find(d => d.id === id);
+            const sequenceValue = existing && existing.sequence != null
+                ? existing.sequence
+                : (data.sequence != null ? data.sequence : impactData.deliveries.length);
+
+            const payload = {
+                id,
+                address: data.address || (existing && existing.address) || 'Unknown Address',
+                medication: data.medication || (existing && existing.medication) || 'Unknown',
+                priority: data.priority || (existing && existing.priority) || 'standard',
+                coordinates: data.coordinates || (existing && existing.coordinates) || [46.7298 + (Math.random() - 0.5) * 0.1, -117.1817 + (Math.random() - 0.5) * 0.1],
+                status: data.status || (existing && existing.status) || 'en_route',
+                stage: data.stage || (existing && existing.stage) || 'In transit',
+                notes: data.message || (existing && existing.notes) || null,
+                impact: data.impact || (existing && existing.impact) || null,
+                timestamp: Date.now(),
+                sequence: sequenceValue
+            };
+            if (existing) {
+                Object.assign(existing, payload);
+            } else {
+                impactData.deliveries.push(payload);
+            }
+            updateImpactVisualization();
+            updatePatientExperience();
+        }
+        
+        function addCascadeFailure(data) {
+            const failure = {
+                source: data.source || 'Unknown',
+                affected: data.affected || [],
+                timestamp: Date.now()
+            };
+            updateCascadeVisualization(failure);
+        }
+
+        function handleDeliveryRoute(data) {
+            impactData.deliveries = (data.route || []).map((stop, idx) => ({
+                ...stop,
+                id: stop.id || `route-${idx}`,
+                sequence: typeof stop.sequence === 'number' ? stop.sequence : idx,
+                priority: stop.priority || 'standard',
+                status: stop.status || 'en_route',
+                stage: stop.stage || 'Scheduled',
+                notes: stop.notes || null,
+                timestamp: Date.now()
+            }));
+            impactData.total = impactData.deliveries.length || impactData.total;
+            mapState.path = data.path || [];
+            mapState.driver = data.driver || null;
+            mapState.totalStops = data.totalStops || impactData.deliveries.length;
+            updateImpactVisualization();
+            updatePatientExperience();
+        }
+
+        function handleDeliveryUpdate(data) {
+            if (!data || !Array.isArray(data.updates)) return;
+            data.updates.forEach((update, idx) => {
+                const id = update.id || `update-${idx}`;
+                let target = impactData.deliveries.find(d => d.id === id);
+                if (!target) {
+                    target = {
+                        id,
+                        address: update.address || 'Unknown Address',
+                        medication: update.medication || 'Unknown',
+                        priority: update.priority || 'standard',
+                        coordinates: update.coordinates || [46.7298 + (Math.random() - 0.5) * 0.1, -117.1817 + (Math.random() - 0.5) * 0.1],
+                        sequence: update.sequence || impactData.deliveries.length,
+                        timestamp: Date.now()
+                    };
+                    impactData.deliveries.push(target);
+                }
+                if (update.status) target.status = update.status;
+                if (update.stage) target.stage = update.stage;
+                if (update.notes) target.notes = update.notes;
+                if (update.impact) target.impact = update.impact;
+                if (update.coordinates) target.coordinates = update.coordinates;
+                target.timestamp = Date.now();
+            });
+            updateImpactVisualization();
+            updatePatientExperience();
+        }
+        
+        function updateImpactVisualization() {
+            // Update financial impact
+            document.getElementById('impact-financial').textContent = `$${impactData.financial.toLocaleString()}`;
+            document.getElementById('impact-deliveries').textContent = impactData.deliveries.length;
+            document.getElementById('impact-patients').textContent = impactData.patients;
+            const totalDeliveries = impactData.total || Math.max(impactData.deliveries.length, 1);
+            document.getElementById('impact-operational').textContent = `${Math.min(100, (impactData.compromised / totalDeliveries) * 100).toFixed(0)}%`;
+            
+            // Update delivery map and urgency counts
+            updateDeliveryMap();
+            updateUrgencyCounts();
+        }
+
+        function getMarkerPositionByIndex(index, total) {
+            const columns = Math.min(4, Math.max(Math.ceil(Math.sqrt(total || 4)), 2));
+            const row = Math.floor(index / columns);
+            const col = index % columns;
+            const horizontalGap = columns > 1 ? 70 / (columns - 1) : 0;
+            const left = 10 + (col * horizontalGap);
+            const top = 12 + (row * 26);
+            return { left, top };
+        }
+
+        function computeMarkerColor(stop) {
+            const statusPalette = {
+                dispatch: '#475569',
+                planned: '#2563eb',
+                targeted: '#f97316',
+                compromised: '#ef4444',
+                diverted: '#facc15',
+                at_risk: '#f59e0b',
+                backlog: '#0ea5e9',
+                delayed: '#9333ea',
+                disrupted: '#111827',
+                mission_complete: '#16a34a'
+            };
+            if (stop.status && statusPalette[stop.status]) {
+                return statusPalette[stop.status];
+            }
+            const priorityPalette = {
+                critical: '#ef4444',
+                high: '#f97316',
+                standard: '#2563eb',
+                origin: '#475569'
+            };
+            return priorityPalette[stop.priority] || '#2563eb';
+        }
+        
+        function updateDeliveryMap() {
+            const mapContainer = document.getElementById('map-markers');
+            const mapWrapper = document.getElementById('delivery-map');
+            const pathSvg = document.getElementById('map-paths');
+            const mapPlaceholder = document.getElementById('map-placeholder');
+            if (!mapContainer || !mapWrapper) return;
+
+            const stops = [...impactData.deliveries];
+            stops.sort((a, b) => {
+                const aSeq = typeof a.sequence === 'number' ? a.sequence : a.sequenceIndex || a.sequenceFallback || 0;
+                const bSeq = typeof b.sequence === 'number' ? b.sequence : b.sequenceIndex || b.sequenceFallback || 0;
+                return aSeq - bSeq;
+            });
+
+            if (!stops.length) {
+                if (mapPlaceholder) {
+                    mapPlaceholder.textContent = 'Delivery map visualization - No affected deliveries yet';
+                    mapPlaceholder.classList.remove('hidden');
+                }
+                mapContainer.innerHTML = '';
+                if (pathSvg) pathSvg.innerHTML = '';
+                return;
+            }
+
+            if (mapPlaceholder) {
+                mapPlaceholder.textContent = `Driver: ${mapState.driver || 'Unknown'} • ${mapState.totalStops || stops.length} scheduled stops`;
+                mapPlaceholder.classList.add('hidden');
+            }
+
+            const totalStops = stops.length;
+            const markers = stops.map((stop, idx) => {
+                const pos = getMarkerPositionByIndex(idx, totalStops);
+                stop._position = pos;
+                const color = computeMarkerColor(stop);
+                const label = stop.sequence != null ? `S${stop.sequence}` : `S${idx}`;
+                const statusLabel = (stop.status || 'en_route').replace(/_/g, ' ');
+                return `
+                    <div class="absolute pointer-events-auto delivery-marker" data-delivery-id="${stop.id}" style="left: ${pos.left}%; top: ${pos.top}%; z-index: 10;">
+                        <div class="w-6 h-6 rounded-full border-2 border-white shadow-lg cursor-pointer hover:scale-150 transition-all transform hover:z-20" 
+                             style="background-color: ${color};" 
+                             title="${stop.name || 'Delivery'} • ${statusLabel}">
+                        </div>
+                        <div class="text-[10px] font-semibold text-slate-600 mt-1 text-center">${label}</div>
+                    </div>
+                `;
+            }).join('');
+
+            mapContainer.innerHTML = markers;
+
+            mapContainer.querySelectorAll('.delivery-marker').forEach(marker => {
+                marker.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const deliveryId = marker.getAttribute('data-delivery-id');
+                    const delivery = impactData.deliveries.find(d => d.id === deliveryId);
+                    if (delivery) {
+                        showDeliveryDetails(delivery);
+                    }
+                });
+            });
+
+            if (pathSvg) {
+                const rect = mapWrapper.getBoundingClientRect();
+                const width = rect.width || mapWrapper.offsetWidth || 0;
+                const height = rect.height || mapWrapper.offsetHeight || 0;
+                if (width && height) {
+                    pathSvg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+                    const points = stops.map((stop) => {
+                        const { left, top } = stop._position;
+                        return `${(left / 100 * width).toFixed(1)},${(top / 100 * height).toFixed(1)}`;
+                    }).join(' ');
+                    pathSvg.innerHTML = stops.length > 1 ? `<polyline points="${points}" fill="none" stroke="#94a3b8" stroke-width="2" stroke-dasharray="6"></polyline>` : '';
+                }
+            }
+        }
+        
+        function showDeliveryDetails(delivery) {
+            const detailsPanel = document.getElementById('map-details');
+            const detailTitle = document.getElementById('map-detail-title');
+            const detailContent = document.getElementById('map-detail-content');
+            
+            if (!detailsPanel || !detailTitle || !detailContent) return;
+            
+            detailTitle.textContent = `Delivery ${delivery.id}`;
+            const time = delivery.timestamp ? new Date(delivery.timestamp).toLocaleTimeString() : '—';
+            const statusLabel = (delivery.status || 'en_route').replace(/_/g, ' ');
+            const stage = delivery.stage || 'In transit';
+            const notesLine = delivery.notes ? `<div><strong>Notes:</strong> ${delivery.notes}</div>` : '';
+            const coords = delivery.coordinates ? `[${delivery.coordinates[0].toFixed(4)}, ${delivery.coordinates[1].toFixed(4)}]` : '—';
+            const impactLine = delivery.impact && delivery.impact.patients
+                ? `<div><strong>Patients Impacted:</strong> ${delivery.impact.patients}${delivery.impact.risk ? ` • Risk: ${String(delivery.impact.risk).replace(/_/g, ' ')}` : ''}</div>`
+                : '';
+            detailContent.innerHTML = `
+                <div><strong>Address:</strong> ${delivery.address || 'Unknown'}</div>
+                <div><strong>Medication:</strong> ${delivery.medication || 'Unknown'}</div>
+                <div><strong>Priority:</strong> <span class="font-bold ${delivery.priority === 'critical' ? 'text-red-600' : delivery.priority === 'high' ? 'text-amber-600' : 'text-blue-600'}">${(delivery.priority || 'standard').toUpperCase()}</span></div>
+                <div><strong>Status:</strong> ${statusLabel.toUpperCase()}</div>
+                <div><strong>Stage:</strong> ${stage}</div>
+                <div><strong>Coordinates:</strong> ${coords}</div>
+                <div><strong>Last Update:</strong> ${time}</div>
+                ${impactLine}
+                ${notesLine}
+            `;
+            
+            detailsPanel.classList.remove('hidden');
+        }
+        
+        // Setup delivery details close handler
+        function setupDeliveryDetailsHandlers() {
+            const closeBtn = document.getElementById('map-detail-close');
+            const detailsPanel = document.getElementById('map-details');
+            if (closeBtn && detailsPanel) {
+                closeBtn.addEventListener('click', () => {
+                    detailsPanel.classList.add('hidden');
+                });
+            }
+            
+            // Close on map click
+            const mapContainer = document.getElementById('delivery-map');
+            if (mapContainer) {
+                mapContainer.addEventListener('click', (e) => {
+                    if (e.target === mapContainer || e.target.id === 'map-placeholder') {
+                        if (detailsPanel) detailsPanel.classList.add('hidden');
+                    }
+                });
+            }
+        }
+        
+        function updateUrgencyCounts() {
+            const insulinCount = impactData.deliveries.filter(d => d.medication === 'Insulin' || d.priority === 'critical').length;
+            const cardiacCount = impactData.deliveries.filter(d => d.medication === 'Cardiac Medication' || d.priority === 'high').length;
+            const routineCount = impactData.deliveries.filter(d => d.priority === 'standard').length;
+            
+            const insulinEl = document.getElementById('insulin-count');
+            const cardiacEl = document.getElementById('cardiac-count');
+            const routineEl = document.getElementById('routine-count');
+            
+            if (insulinEl) insulinEl.textContent = `${insulinCount} affected`;
+            if (cardiacEl) cardiacEl.textContent = `${cardiacCount} affected`;
+            if (routineEl) routineEl.textContent = `${routineCount} affected`;
+        }
+        
+        function showAttackSummary() {
+            const summaryPanel = document.getElementById('attack-summary');
+            if (!summaryPanel) return;
+            
+            // Update summary with final metrics
+            const compromisedPct = (impactData.compromised / impactData.total) * 100;
+            document.getElementById('summary-compromised-pct').textContent = `${compromisedPct.toFixed(0)}%`;
+            document.getElementById('summary-compromised-bar').style.width = `${compromisedPct}%`;
+            document.getElementById('summary-compromised-count').textContent = impactData.compromised;
+            document.getElementById('summary-total-deliveries').textContent = impactData.total;
+            
+            const recovery = metricsData.recoveryTime || (metricsData.detectionTime ? metricsData.detectionTime + 30 : 0);
+            document.getElementById('summary-recovery-time').textContent = `${recovery} min`;
+            document.getElementById('summary-detection-time').textContent = `${metricsData.detectionTime || 0} min`;
+            document.getElementById('summary-impact-time').textContent = `${metricsData.impactTime || 0} min`;
+            
+            // Vector effectiveness
+            const phishingPct = metricsData.vectorEffectiveness.phishing || 0;
+            const gpsPct = metricsData.vectorEffectiveness.gps || 0;
+            const apiPct = metricsData.vectorEffectiveness.api || 0;
+            
+            document.getElementById('summary-vector-phishing').textContent = `${phishingPct}%`;
+            document.getElementById('summary-vector-phishing-bar').style.width = `${phishingPct}%`;
+            document.getElementById('summary-vector-gps').textContent = `${gpsPct}%`;
+            document.getElementById('summary-vector-gps-bar').style.width = `${gpsPct}%`;
+            document.getElementById('summary-vector-api').textContent = `${apiPct}%`;
+            document.getElementById('summary-vector-api-bar').style.width = `${apiPct}%`;
+            
+            // Patient impact
+            document.getElementById('summary-patients').textContent = impactData.patients;
+            document.getElementById('summary-critical').textContent = impactData.deliveries.filter(d => d.priority === 'critical').length;
+            document.getElementById('summary-delays').textContent = patientData.humanCost.delays;
+            
+            // Notifications summary
+            const notificationsEl = document.getElementById('summary-notifications');
+            if (notificationsEl) {
+                notificationsEl.innerHTML = patientData.notifications.map((notif, idx) => {
+                    const time = new Date(notif.timestamp).toLocaleTimeString();
+                    return `<div>${idx + 1}. ${notif.message} (${time})</div>`;
+                }).join('') || '<div class="text-slate-400">No notifications sent</div>';
+            }
+            
+            // Show summary panel
+            summaryPanel.classList.remove('hidden');
+            summaryPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+        
+        function updateCascadeVisualization(failure) {
+            const cascadeContainer = document.getElementById('cascade-nodes');
+            if (!cascadeContainer) return;
+            
+            const node = document.createElement('div');
+            node.className = 'p-2 bg-red-50 border border-red-200 rounded text-sm';
+            node.innerHTML = `
+                <div class="font-semibold text-red-800">${failure.source}</div>
+                <div class="text-xs text-red-600">Affected: ${failure.affected.length} nodes</div>
+            `;
+            cascadeContainer.appendChild(node);
+        }
+        
+        // Metrics Functions
+        function updateMetricsData(data) {
+            if (data.compromisedPct !== undefined) metricsData.compromisedPct = data.compromisedPct;
+            if (data.recoveryTime !== undefined) metricsData.recoveryTime = data.recoveryTime;
+            if (data.vectorEffectiveness) {
+                Object.assign(metricsData.vectorEffectiveness, data.vectorEffectiveness);
+            }
+            updateAttackMetrics();
+        }
+        
+        function updateDetectionMetrics() {
+            if (!attackStartTime) return;
+            const now = Date.now();
+            if (detectionTime) {
+                metricsData.detectionTime = Math.floor((detectionTime - attackStartTime) / 1000 / 60);
+            }
+            if (impactTime) {
+                metricsData.impactTime = Math.floor((impactTime - attackStartTime) / 1000 / 60);
+            } else if (impactData.compromised > 0) {
+                impactTime = now;
+                metricsData.impactTime = Math.floor((now - attackStartTime) / 1000 / 60);
+            }
+            updateAttackMetrics();
+        }
+        
+        function updateAttackMetrics() {
+            // Update compromised percentage
+            const compromisedPct = (impactData.compromised / impactData.total) * 100;
+            document.getElementById('metrics-compromised-pct').textContent = `${compromisedPct.toFixed(0)}%`;
+            document.getElementById('metrics-compromised-bar').style.width = `${compromisedPct}%`;
+            document.getElementById('metrics-compromised-count').textContent = impactData.compromised;
+            document.getElementById('metrics-total-deliveries').textContent = impactData.total;
+            
+            // Update recovery time
+            const recovery = metricsData.recoveryTime || (metricsData.detectionTime ? metricsData.detectionTime + 30 : 0);
+            document.getElementById('metrics-recovery-time').textContent = `${recovery} min`;
+            document.getElementById('metrics-detection-time').textContent = `${metricsData.detectionTime || 0} min`;
+            document.getElementById('metrics-impact-time').textContent = `${metricsData.impactTime || 0} min`;
+            
+            // Update vector effectiveness
+            const phishingPct = metricsData.vectorEffectiveness.phishing || 0;
+            const gpsPct = metricsData.vectorEffectiveness.gps || 0;
+            const apiPct = metricsData.vectorEffectiveness.api || 0;
+            
+            document.getElementById('vector-phishing').textContent = `${phishingPct}%`;
+            document.getElementById('vector-phishing-bar').style.width = `${phishingPct}%`;
+            document.getElementById('vector-gps').textContent = `${gpsPct}%`;
+            document.getElementById('vector-gps-bar').style.width = `${gpsPct}%`;
+            document.getElementById('vector-api').textContent = `${apiPct}%`;
+            document.getElementById('vector-api-bar').style.width = `${apiPct}%`;
+            
+            // Update timeline
+            const maxTime = Math.max(metricsData.detectionTime || 0, metricsData.impactTime || 0, 60);
+            const detectionWidth = maxTime > 0 ? (metricsData.detectionTime || 0) / maxTime * 100 : 0;
+            const impactWidth = maxTime > 0 ? (metricsData.impactTime || 0) / maxTime * 100 : 0;
+            
+            document.getElementById('timeline-detection').style.width = `${detectionWidth}%`;
+            document.getElementById('timeline-detection-text').textContent = `${metricsData.detectionTime || 0} min`;
+            document.getElementById('timeline-impact').style.width = `${impactWidth}%`;
+            document.getElementById('timeline-impact-text').textContent = `${metricsData.impactTime || 0} min`;
+            
+            const window = Math.max(0, (metricsData.impactTime || 0) - (metricsData.detectionTime || 0));
+            document.getElementById('timeline-window').textContent = `${window} min`;
+        }
+        
+        // Patient Experience Functions
+        function addPatientNotification(data) {
+            const notification = {
+                id: data.id || Math.random().toString(36).substr(2, 9),
+                message: data.message || 'Your medication delivery is delayed.',
+                medication: data.medication || 'Unknown',
+                timestamp: Date.now()
+            };
+            patientData.notifications.push(notification);
+            updatePatientExperience();
+        }
+        
+        function addFailedDelivery(data) {
+            const delivery = {
+                id: data.deliveryId || Math.random().toString(36).substr(2, 9),
+                address: data.address || 'Unknown Address',
+                reason: data.reason || 'Unknown reason',
+                timestamp: Date.now()
+            };
+            patientData.failedDeliveries.push(delivery);
+            updatePatientExperience();
+        }
+        
+        function addStatusConflict(data) {
+            const conflict = {
+                deliveryId: data.deliveryId || 'Unknown',
+                driverApp: data.driverApp || 'Unknown',
+                pharmacySystem: data.pharmacySystem || 'Unknown',
+                patientPortal: data.patientPortal || 'Unknown',
+                timestamp: Date.now()
+            };
+            patientData.conflictingStatus.push(conflict);
+            updatePatientExperience();
+        }
+        
+        function updatePatientExperience() {
+            // Update notifications
+            const notificationsContainer = document.getElementById('patient-notifications');
+            if (notificationsContainer) {
+                notificationsContainer.innerHTML = patientData.notifications.map((notif, idx) => {
+                    const time = new Date(notif.timestamp).toLocaleTimeString();
+                    return `
+                        <div class="p-3 bg-red-50 border border-red-200 rounded-lg">
+                            <div class="font-semibold text-red-800">Patient Alert</div>
+                            <div class="text-sm text-red-600">${notif.message}</div>
+                            <div class="text-xs text-red-500 mt-1">Sent: ${time}</div>
+                        </div>
+                    `;
+                }).join('');
+            }
+            
+            // Update failed deliveries
+            const failedContainer = document.getElementById('failed-deliveries');
+            if (failedContainer) {
+                failedContainer.innerHTML = patientData.failedDeliveries.map((delivery, idx) => {
+                    return `
+                        <div class="p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <div class="font-semibold text-slate-800">Delivery #${delivery.id}</div>
+                                    <div class="text-sm text-slate-600">Address: ${delivery.address}</div>
+                                    <div class="text-xs text-slate-500">Reason: ${delivery.reason}</div>
+                                </div>
+                                <div class="text-red-600 font-bold">FAILED</div>
+>>>>>>> Stashed changes
                             </div>
                         </div>
                     `;
                 }).join('');
             }
+<<<<<<< Updated upstream
 
             // Update notifications counter
             document.getElementById('patient-notifications').textContent = 
@@ -2144,6 +3058,73 @@
             }
 
             updateRouteDisplay();
+=======
+            
+            // Update conflicting status
+            const conflictContainer = document.getElementById('conflicting-status');
+            if (conflictContainer && patientData.conflictingStatus.length > 0) {
+                const latest = patientData.conflictingStatus[patientData.conflictingStatus.length - 1];
+                conflictContainer.innerHTML = `
+                    <div class="p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                        <div class="font-semibold text-amber-800 mb-2">Status Conflict Detected</div>
+                        <div class="text-sm text-amber-700 space-y-1">
+                            <div>Driver App: <span class="font-bold">${latest.driverApp}</span></div>
+                            <div>Pharmacy System: <span class="font-bold">${latest.pharmacySystem}</span></div>
+                            <div>Patient Portal: <span class="font-bold">${latest.patientPortal}</span></div>
+                        </div>
+                        <div class="text-xs text-amber-600 mt-2">⚠️ Data inconsistency detected</div>
+                    </div>
+                `;
+            }
+            
+            // Update human cost
+            patientData.humanCost.patients = impactData.patients;
+            patientData.humanCost.critical = impactData.deliveries.filter(d => d.priority === 'critical').length;
+            patientData.humanCost.delays = Math.floor((Date.now() - (attackStartTime || Date.now())) / 1000 / 3600);
+            
+            document.getElementById('human-cost-patients').textContent = patientData.humanCost.patients;
+            document.getElementById('human-cost-critical').textContent = patientData.humanCost.critical;
+            document.getElementById('human-cost-delays').textContent = patientData.humanCost.delays;
+        }
+        
+        // Insulin Timer
+        let insulinTimerInterval = null;
+        function startInsulinTimer() {
+            if (insulinTimerInterval) clearInterval(insulinTimerInterval);
+            patientData.insulinTimer = 7200; // 2 hours
+            
+            insulinTimerInterval = setInterval(() => {
+                patientData.insulinTimer--;
+                if (patientData.insulinTimer <= 0) {
+                    patientData.insulinTimer = 0;
+                    clearInterval(insulinTimerInterval);
+                }
+                
+                const hours = Math.floor(patientData.insulinTimer / 3600);
+                const minutes = Math.floor((patientData.insulinTimer % 3600) / 60);
+                const seconds = patientData.insulinTimer % 60;
+                
+                const timerEl = document.getElementById('insulin-timer');
+                if (timerEl) {
+                    timerEl.textContent = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+                    
+                    if (patientData.insulinTimer < 600) { // Less than 10 minutes
+                        timerEl.classList.add('animate-pulse');
+                    }
+                }
+                
+                const statusEl = document.getElementById('insulin-status');
+                if (statusEl) {
+                    if (patientData.insulinTimer <= 0) {
+                        statusEl.innerHTML = 'Delivery status: <span class="font-bold text-red-600">CRITICAL - OVERDUE</span>';
+                    } else if (patientData.insulinTimer < 600) {
+                        statusEl.innerHTML = 'Delivery status: <span class="font-bold text-amber-600">URGENT</span>';
+                    } else {
+                        statusEl.innerHTML = 'Delivery status: <span class="font-bold">PENDING</span>';
+                    }
+                }
+            }, 1000);
+>>>>>>> Stashed changes
         }
 
         async function completeAuthentication(payload) {
@@ -2429,9 +3410,18 @@
 
         renderPendingActions();
         renderLLMShell();
+<<<<<<< Updated upstream
         renderImpact();
         renderAttackMetrics();
         renderPatientExperience();
+=======
+        setupDeliveryDetailsHandlers();
+        window.addEventListener('resize', () => {
+            if (impactData.deliveries.length) {
+                updateDeliveryMap();
+            }
+        });
+>>>>>>> Stashed changes
         restoreSession();
     </script>
 </body>

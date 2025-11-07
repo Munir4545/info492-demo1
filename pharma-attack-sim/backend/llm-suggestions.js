@@ -86,6 +86,21 @@ function generateSuggestion(attackId, context) {
     });
   }
   
+  if (state.completedSteps.includes('phishing') && !state.escalationRequested) {
+    suggestions.push({
+      id: 'suggest-tier-escalation',
+      priority: 'medium',
+      action: 'switch_tier',
+      newTier: 'tier3',
+      title: 'Escalate to Dispatcher Tier 3 Oversight',
+      description: 'LLM recommends engaging human reviewers at Tier 3 to approve deeper lateral movement before GPS manipulation.',
+      reason: 'Human-in-the-loop approval reduces detection risk before high-impact GPS spoofing.',
+      confidence: 0.72,
+      autoExecute: false
+    });
+    state.escalationRequested = true;
+  }
+  
   if (state.failedSteps.includes('gps') && state.completedSteps.includes('phishing')) {
     suggestions.push({
       id: 'suggest-api-flood',
