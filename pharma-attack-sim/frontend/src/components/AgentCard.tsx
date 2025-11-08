@@ -8,7 +8,7 @@ interface AgentCardProps {
   icon: string;
 }
 
-const AgentCard = ({ agentType, name, status, message, icon }: AgentCardProps) => {
+const AgentCard = ({ name, status, message, icon }: AgentCardProps) => {
   const getStatusColor = () => {
     switch (status) {
       case 'working':

@@ -49,7 +49,7 @@ const AttackTimeline = ({ stepUpdates }: AttackTimelineProps) => {
 
   useEffect(() => {
     // Auto-scroll to active step
-    const activeIndex = steps.findIndex((step, idx) => {
+    const activeIndex = steps.findIndex((step) => {
       const status = getStepStatus(step.id);
       return status === 'running' || status === 'completed';
     });

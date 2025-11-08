@@ -806,12 +806,13 @@ process.on('unhandledRejection', (reason, promise) => {
   // Don't crash the server
 });
 
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
   console.log(`
 🚀 Attack Control Server
    http://localhost:${PORT}
    WebSocket ready
+   Environment: ${process.env.NODE_ENV || 'development'}
   `);
 });
 

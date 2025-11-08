@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAttackContext } from '../../state/AttackProvider';
 import { interventionTriggers, InterventionOption } from '../../data/syntheticAttackData';
 

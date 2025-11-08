@@ -391,7 +391,6 @@ const AnalyzeSection = ({ simulation, deliveries, attackVectors, history, export
   const latestHistory = history[0] ?? null;
   const compromisePct = latestHistory ? latestHistory.results.compromiseRate * 100 : simulation.compromisePercentage;
   const detectionDelay = latestHistory ? latestHistory.results.detectionDelay ?? 0 : simulation.detectionDelay || 0;
-  const durationMinutes = latestHistory ? latestHistory.durationMinutes : simulation.elapsedMinutes;
   const cascadeEvents = latestHistory
     ? latestHistory.results.cascadeEvents
     : deliveries.filter((delivery) => delivery.cascadeAffected || delivery.status === 'compromised' || delivery.status === 'delayed').length;

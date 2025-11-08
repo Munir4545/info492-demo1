@@ -6,13 +6,25 @@ import AgentCard from '../components/AgentCard';
 import AttackTimeline from '../components/AttackTimeline';
 import LiveConsole from '../components/LiveConsole';
 import LLMLogConsole from '../components/LLMLogConsole';
-import { AttackResult } from '../../../shared/types';
+
+interface AttackResult {
+  success?: boolean;
+  compromise?: number;
+  detection?: string;
+  packagesAffected?: number;
+  patientsImpacted?: number;
+  cascadingDisruptions?: number;
+  financialCost?: number;
+  erVisits?: number;
+  detectionTime?: number;
+  [key: string]: any;
+}
 
 const DashboardPage = () => {
   const navigate = useNavigate();
   const [attackId, setAttackId] = useState<number | null>(null);
-  const [attackStatus, setAttackStatus] = useState<'idle' | 'running' | 'completed'>('idle');
-  const [attackConfig, setAttackConfig] = useState({
+  const [attackStatus, setAttackStatus] = useState<'idle' | 'running' | 'completed' | 'paused'>('idle');
+  const [attackConfig] = useState({
     targetNetwork: 'USPS Spokane',
     scenario: 'Pharmaceutical',
     day: 1
@@ -247,15 +259,15 @@ const DashboardPage = () => {
                 </div>
                 <div>
                   <div className="text-gray-400 text-sm">Cascading Disruptions</div>
-                  <div className="text-xl font-bold">{attackResults.cascadingDisruptions}</div>
+                  <div className="text-xl font-bold">{attackResults.cascadingDisruptions || 0}</div>
                 </div>
                 <div>
                   <div className="text-gray-400 text-sm">Financial Cost</div>
-                  <div className="text-xl font-bold">${attackResults.financialCost.toLocaleString()}</div>
+                  <div className="text-xl font-bold">${(attackResults.financialCost || 0).toLocaleString()}</div>
                 </div>
                 <div>
                   <div className="text-gray-400 text-sm">Detection Time</div>
-                  <div className="text-xl font-bold">{attackResults.detectionTime} min</div>
+                  <div className="text-xl font-bold">{attackResults.detectionTime || 0} min</div>
                 </div>
               </div>
             </div>

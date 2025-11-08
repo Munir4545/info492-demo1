@@ -13,7 +13,7 @@ const LoginPage = () => {
     setError('');
     setLoading(true);
 
-    const result = await login(username, password);
+    const result = await login(username, 'webauthn');
     setLoading(false);
 
     if (!result.success) {

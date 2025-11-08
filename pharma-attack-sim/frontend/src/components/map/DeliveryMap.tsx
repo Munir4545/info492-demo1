@@ -105,7 +105,7 @@ const DeliveryMap = () => {
                 pathOptions={{
                   color: '#0f172a',
                   weight: 2,
-                  fillColor: getStatusColor(delivery),
+                  fillColor: getStatusColor(delivery.status),
                   fillOpacity: 0.9
                 }}
               >
