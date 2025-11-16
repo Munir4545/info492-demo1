@@ -110,13 +110,13 @@ export const EventStream: React.FC<EventStreamProps> = ({ events, autoScroll = t
   };
   
   return (
-    <div className="bg-gray-800 rounded-lg p-6 shadow-lg h-full flex flex-col">
+    <div className="bg-gray-800 rounded-lg p-6 shadow-lg flex flex-col">
       <h2 className="text-2xl font-bold text-white mb-4">Live Event Stream</h2>
       
       <div 
         ref={scrollRef}
-        className="flex-1 bg-gray-900 rounded-lg p-4 overflow-y-auto custom-scrollbar font-mono text-sm"
-        style={{ maxHeight: '600px' }}
+        className="bg-gray-900 rounded-lg p-4 overflow-y-auto custom-scrollbar font-mono text-sm"
+        style={{ height: '500px', minHeight: '500px', maxHeight: '500px' }}
       >
         {events.length === 0 ? (
           <div className="text-gray-500 text-center py-8">

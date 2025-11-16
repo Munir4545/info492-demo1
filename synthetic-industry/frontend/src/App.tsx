@@ -7,6 +7,9 @@ import { StreamMap } from './components/StreamMap';
 import { ApiDataPanel } from './components/ApiDataPanel';
 import { Delivery, SimulationStats, StreamEvent, RouteManifest, Coordinates } from './types';
 
+const API_BASE_URL = (import.meta.env.VITE_SYNTHETIC_API || '').replace(/\/$/, '');
+const DISPLAY_BACKEND_URL = API_BASE_URL || 'http://localhost:8007';
+
 const initialStats: SimulationStats = {
   running: false,
   hasRoute: false,
@@ -58,8 +61,15 @@ interface AnimationState {
   duration: number;
 }
 
+function buildApiUrl(path: string) {
+  if (!API_BASE_URL) {
+    return path;
+  }
+  return `${API_BASE_URL}${path}`;
+}
+
 function App() {
-  const [streamClient] = useState(() => new SyntheticStreamClient());
+  const [streamClient] = useState(() => new SyntheticStreamClient(API_BASE_URL));
   const [streamConnected, setStreamConnected] = useState(false);
   const [stats, setStats] = useState<SimulationStats>(initialStats);
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
@@ -398,7 +408,7 @@ function App() {
   
   const fetchManifest = async () => {
     try {
-      const response = await fetch('/api/synthetic/manifest');
+      const response = await fetch(buildApiUrl('/api/synthetic/manifest'));
       if (response.ok) {
         const manifest: RouteManifest = await response.json();
         routeManifestRef.current = manifest;
@@ -488,7 +498,7 @@ function App() {
   };
   
   return (
-    <div className="min-h-screen bg-gray-900 text-white">
+    <div className="min-h-screen bg-gray-900 text-white flex flex-col">
       {/* Header */}
       <header className="bg-gray-800 border-b border-gray-700 py-6">
         <div className="container mx-auto px-4">
@@ -521,7 +531,7 @@ function App() {
       )}
       
       {/* Main Content */}
-      <main className="container mx-auto px-4 py-8">
+      <main className="flex-1 container mx-auto px-4 py-8 pb-24 space-y-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Column */}
           <div className="space-y-6">
@@ -540,8 +550,8 @@ function App() {
             />
           </div>
           
-          {/* Middle Column */}
-          <div className="lg:col-span-2 space-y-6">
+          {/* Map + Route Overview */}
+          <div className="lg:col-span-2">
             <StreamMap
               deliveries={deliveries}
               driverLocation={driverLocation}
@@ -549,25 +559,28 @@ function App() {
               routeName={routeManifest?.routeName}
               currentDeliveryId={stats.currentDelivery?.id || null}
             />
-            
-            <EventStream events={events} autoScroll={true} />
-
-            <ApiDataPanel
-              stats={stats}
-              manifest={routeManifest}
-              driverLocation={driverLocation}
-              latestEvent={events.length > 0 ? events[events.length - 1] : null}
-            />
           </div>
+        </div>
+
+        {/* Live Stream + API Data */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <EventStream events={events} autoScroll={true} />
+
+          <ApiDataPanel
+            stats={stats}
+            manifest={routeManifest}
+            driverLocation={driverLocation}
+            latestEvent={events.length > 0 ? events[events.length - 1] : null}
+          />
         </div>
       </main>
       
       {/* Footer */}
-      <footer className="bg-gray-800 border-t border-gray-700 py-4 mt-8">
+      <footer className="bg-gray-800 border-t border-gray-700 py-4">
         <div className="container mx-auto px-4 text-center text-gray-400 text-sm">
           <p>Synthetic Industry Generator v1.0 | Autonomous Delivery Data Generation System</p>
           <p className="mt-1">
-            Backend: <code className="bg-gray-700 px-2 py-1 rounded">http://localhost:3002</code>
+            Backend: <code className="bg-gray-700 px-2 py-1 rounded">{DISPLAY_BACKEND_URL}</code>
           </p>
         </div>
       </footer>
