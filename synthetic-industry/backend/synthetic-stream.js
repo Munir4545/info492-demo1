@@ -1,6 +1,10 @@
 // Synthetic Stream - Single driver with multiple deliveries model
 
-const { generateRouteManifest, calculateCurrentDelivery, calculateCurrentLocation } = require('./routeGenerator');
+const {
+  generateRouteManifest,
+  calculateCurrentDelivery,
+  calculateCurrentLocation
+} = require('./routeGenerator');
 const { getDriverStats } = require('./driverManager');
 
 // Connected SSE clients
@@ -14,7 +18,8 @@ let simulationState = {
   routeManifest: null, // Single route with driver and all deliveries
   currentDeliveryIndex: 0,
   completedDeliveries: [],
-  eventCount: 0
+  eventCount: 0,
+  dispatcher: null
 };
 
 // Interval references
@@ -191,6 +196,7 @@ function updateRouteProgress() {
  */
 function sendDispatcherMessage(delivery, eventType) {
   let message = '';
+  const dispatcher = simulationState.routeManifest?.dispatcher || simulationState.dispatcher;
   
   switch (eventType) {
     case 'en_route':
@@ -207,6 +213,8 @@ function sendDispatcherMessage(delivery, eventType) {
   broadcastEvent({
     type: 'dispatcher_message',
     data: {
+      dispatcherId: dispatcher?.id,
+      dispatcher: dispatcher?.displayName || dispatcher?.name,
       deliveryId: delivery.id,
       sequenceNumber: delivery.sequenceNumber,
       message: message,
@@ -219,7 +227,7 @@ function sendDispatcherMessage(delivery, eventType) {
 /**
  * Start simulation with a new route manifest
  */
-function startSimulation(durationHours = 24) {
+async function startSimulation(durationHours = 24) {
   if (simulationState.running) {
     throw new Error('Simulation already running');
   }
@@ -227,7 +235,7 @@ function startSimulation(durationHours = 24) {
   const now = new Date();
   
   // Generate a complete route manifest (one driver, multiple deliveries)
-  const manifest = generateRouteManifest(now);
+  const manifest = await generateRouteManifest(now);
   
   simulationState.running = true;
   simulationState.startTime = now;
@@ -236,6 +244,7 @@ function startSimulation(durationHours = 24) {
   simulationState.currentDeliveryIndex = 0;
   simulationState.completedDeliveries = [];
   simulationState.eventCount = 0;
+  simulationState.dispatcher = manifest.dispatcher;
   
   manifest.status = 'active';
   
@@ -252,7 +261,8 @@ function startSimulation(durationHours = 24) {
       startTime: manifest.startTime,
       estimatedEndTime: manifest.estimatedEndTime,
       estimatedDuration: manifest.estimatedDuration,
-      criticalityBreakdown: manifest.criticalityBreakdown
+      criticalityBreakdown: manifest.criticalityBreakdown,
+      dispatcher: manifest.dispatcher
     }
   });
   
@@ -262,6 +272,7 @@ function startSimulation(durationHours = 24) {
     data: {
       routeId: manifest.routeId,
       driver: manifest.driver,
+      dispatcher: manifest.dispatcher,
       routeName: manifest.routeName,
       startLocation: manifest.startLocation,
       deliveries: manifest.deliveries,
@@ -274,9 +285,11 @@ function startSimulation(durationHours = 24) {
   broadcastEvent({
     type: 'dispatcher_message',
     data: {
+      dispatcherId: manifest.dispatcher.id,
+      dispatcher: manifest.dispatcher.displayName,
       message: `Route briefing for ${manifest.driver.displayName}: ${manifest.totalDeliveries} deliveries scheduled. ${manifest.criticalityBreakdown.critical} critical priority items. Starting from ${manifest.startLocation.name}.`,
       priority: 'high',
-      dispatcherNotes: 'Initial route briefing'
+      dispatcherNotes: `Credentials: ${manifest.dispatcher.credentials.role}, clearance ${manifest.dispatcher.credentials.clearanceLevel}`
     }
   });
   
@@ -305,6 +318,7 @@ function stopSimulation() {
   if (simulationState.routeManifest) {
     simulationState.routeManifest.status = 'completed';
   }
+  simulationState.dispatcher = null;
   
   broadcastEvent({
     type: 'simulation_stopped',
@@ -382,6 +396,7 @@ function getSimulationStats() {
     hasRoute: true,
     routeId: manifest.routeId,
     driver: manifest.driver,
+    dispatcher: manifest.dispatcher || simulationState.dispatcher,
     routeName: manifest.routeName,
     currentDeliveryIndex: simulationState.currentDeliveryIndex,
     currentDelivery: manifest.deliveries[simulationState.currentDeliveryIndex] || null,

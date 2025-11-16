@@ -7,6 +7,7 @@ interface ControlPanelProps {
   onStop: () => void;
   onPause: () => void;
   onResume: () => void;
+  isStarting?: boolean;
 }
 
 export const ControlPanel: React.FC<ControlPanelProps> = ({
@@ -14,7 +15,8 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   onStart,
   onStop,
   onPause,
-  onResume
+  onResume,
+  isStarting = false
 }) => {
   const formatElapsedTime = (seconds: number) => {
     const hours = Math.floor(seconds / 3600);
@@ -68,12 +70,38 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
         {!stats.running ? (
           <button
             onClick={onStart}
-            className="col-span-2 bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg transition-colors flex items-center justify-center"
+            disabled={isStarting}
+            className={`col-span-2 bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg transition-colors flex items-center justify-center ${
+              isStarting ? 'opacity-70 cursor-wait' : ''
+            }`}
           >
-            <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
-            </svg>
-            Start 24-Hour Simulation
+            {isStarting ? (
+              <>
+                <svg className="w-5 h-5 mr-2 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  />
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+                  />
+                </svg>
+                Preparing Route...
+              </>
+            ) : (
+              <>
+                <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+                </svg>
+                Start 24-Hour Simulation
+              </>
+            )}
           </button>
         ) : (
           <>

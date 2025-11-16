@@ -100,8 +100,44 @@ const MapBoundsSetter: React.FC<{
   driverLocation: Coordinates | null;
 }> = ({ deliveries, startLocation, driverLocation }) => {
   const map = useMap();
+  const userInteractedRef = useRef(false);
+  const hasFitRef = useRef(false);
+  const routeSignatureRef = useRef<string | null>(null);
 
   useEffect(() => {
+    const handleInteraction = () => {
+      userInteractedRef.current = true;
+    };
+    map.on('dragstart', handleInteraction);
+    map.on('zoomstart', handleInteraction);
+    return () => {
+      map.off('dragstart', handleInteraction);
+      map.off('zoomstart', handleInteraction);
+    };
+  }, [map]);
+
+  useEffect(() => {
+    const signature = JSON.stringify({
+      start: startLocation,
+      deliveries: deliveries.map(delivery => ({
+        id: delivery.id,
+        lat: delivery.destination.lat,
+        lng: delivery.destination.lng
+      }))
+    });
+
+    if (signature !== routeSignatureRef.current) {
+      routeSignatureRef.current = signature;
+      userInteractedRef.current = false;
+      hasFitRef.current = false;
+    }
+  }, [deliveries, startLocation]);
+
+  useEffect(() => {
+    if (hasFitRef.current) {
+      return;
+    }
+
     const points: [number, number][] = [];
     if (startLocation) {
       points.push([startLocation.lat, startLocation.lng]);
@@ -116,6 +152,7 @@ const MapBoundsSetter: React.FC<{
     if (points.length > 0) {
       try {
         map.fitBounds(points, { padding: [50, 50], maxZoom: 13 });
+        hasFitRef.current = true;
       } catch (error) {
         // Ignore fit errors
       }
@@ -127,6 +164,53 @@ const MapBoundsSetter: React.FC<{
 
 const formatStatus = (status: Delivery['status']) =>
   status.replace(/_/g, ' ').toUpperCase();
+
+const decodePolyline = (encoded: string | null | undefined, precision = 6): Coordinates[] => {
+  if (!encoded) return [];
+
+  const coordinates: Coordinates[] = [];
+  let index = 0;
+  let lat = 0;
+  let lng = 0;
+  const factor = Math.pow(10, precision);
+
+  while (index < encoded.length) {
+    let result = 0;
+    let shift = 0;
+    let b;
+
+    do {
+      b = encoded.charCodeAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+
+    const deltaLat = result & 1 ? ~(result >> 1) : result >> 1;
+    lat += deltaLat;
+
+    result = 0;
+    shift = 0;
+
+    do {
+      b = encoded.charCodeAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+
+    const deltaLng = result & 1 ? ~(result >> 1) : result >> 1;
+    lng += deltaLng;
+
+    coordinates.push({
+      lat: lat / factor,
+      lng: lng / factor
+    });
+  }
+
+  return coordinates;
+};
+
+const pointsAreEqual = (a: [number, number], b: [number, number], epsilon = 1e-5) =>
+  Math.abs(a[0] - b[0]) < epsilon && Math.abs(a[1] - b[1]) < epsilon;
 
 export const StreamMap: React.FC<StreamMapProps> = ({
   deliveries,
@@ -144,14 +228,31 @@ export const StreamMap: React.FC<StreamMapProps> = ({
   );
 
   const polylinePoints = useMemo(() => {
-    const points: [number, number][] = [];
+    const path: [number, number][] = [];
+    let lastPoint: [number, number] | null = null;
+
+    const addPoint = (coord: Coordinates) => {
+      const point: [number, number] = [coord.lat, coord.lng];
+      if (!lastPoint || !pointsAreEqual(point, lastPoint)) {
+        path.push(point);
+        lastPoint = point;
+      }
+    };
+
     if (startLocation) {
-      points.push([startLocation.lat, startLocation.lng]);
+      addPoint(startLocation);
     }
+
     orderedDeliveries.forEach(delivery => {
-      points.push([delivery.destination.lat, delivery.destination.lng]);
+      if (delivery.route?.geometry) {
+        const decoded = decodePolyline(delivery.route.geometry);
+        decoded.forEach(addPoint);
+      } else {
+        addPoint(delivery.destination);
+      }
     });
-    return points;
+
+    return path;
   }, [orderedDeliveries, startLocation]);
 
   const currentDelivery = useMemo(

@@ -15,8 +15,14 @@ export const EventStream: React.FC<EventStreamProps> = ({ events, autoScroll = t
     }
   }, [events, autoScroll]);
   
-  const formatTime = (timestamp: string) => {
+  const formatTime = (timestamp?: string) => {
+    if (!timestamp) {
+      return '--:--';
+    }
     const date = new Date(timestamp);
+    if (Number.isNaN(date.getTime())) {
+      return '--:--';
+    }
     return date.toLocaleTimeString();
   };
   
@@ -79,7 +85,7 @@ export const EventStream: React.FC<EventStreamProps> = ({ events, autoScroll = t
       case 'route_manifest':
         return `Manifest: ${event.data?.deliveries?.length} stops for ${event.data?.driver?.displayName}`;
       case 'dispatcher_message':
-        return `📢 Dispatcher: ${event.data?.message}`;
+        return `📢 ${event.data?.dispatcher || 'Dispatcher'}: ${event.data?.message}`;
       case 'delivery_en_route':
         return `🚚 En route to stop #${event.data?.sequenceNumber}: ${event.data?.medication} for ${event.data?.patient}`;
       case 'arrived_at_location':
@@ -94,8 +100,10 @@ export const EventStream: React.FC<EventStreamProps> = ({ events, autoScroll = t
         return `🎉 Route completed! ${event.data?.completedDeliveries}/${event.data?.totalDeliveries} deliveries in ${event.data?.duration} minutes`;
       case 'simulation_stopped':
         return `Simulation stopped - ${event.data?.completedDeliveries}/${event.data?.totalDeliveries} completed`;
-      case 'connected':
-        return `Connected to stream (Client: ${event.data?.clientId})`;
+      case 'connected': {
+        const clientId = event.data?.clientId ?? event.clientId ?? 'N/A';
+        return `Connected to stream (Client: ${clientId})`;
+      }
       default:
         return event.message || `Event: ${event.type}`;
     }

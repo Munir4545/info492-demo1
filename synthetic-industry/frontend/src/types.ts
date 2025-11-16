@@ -33,6 +33,12 @@ export interface Delivery {
   createdAt: string;
   currentLocation?: Coordinates;
   dispatcherNotes: string;
+  route?: {
+    geometry: string | null;
+    distance?: number | null;
+    duration?: number | null;
+    coordinates?: Coordinates[];
+  };
 }
 
 export interface Driver {
@@ -44,9 +50,30 @@ export interface Driver {
   vulnerabilityScore: number;
 }
 
+export interface DispatcherCredentials {
+  role: string;
+  username: string;
+  clearanceLevel: string;
+}
+
+export interface Dispatcher {
+  id: string;
+  name: string;
+  displayName: string;
+  employeeId: string;
+  company: string;
+  credentials: DispatcherCredentials;
+  baseLocation: string;
+  contactNumber: string;
+  assignedOrders: number;
+  assignedDrivers: number;
+  lastShiftStartedAt: string;
+}
+
 export interface RouteManifest {
   routeId: string;
   driver: Driver;
+  dispatcher: Dispatcher;
   routeName: string;
   startTime: string;
   estimatedEndTime: string;
@@ -72,6 +99,7 @@ export interface SimulationStats {
   hasRoute: boolean;
   routeId?: string;
   driver?: Driver;
+  dispatcher?: Dispatcher;
   routeName?: string;
   currentDeliveryIndex: number;
   currentDelivery: Delivery | null;
@@ -94,14 +122,15 @@ export interface SimulationStats {
 
 export interface StreamEvent {
   type: string;
-  timestamp: string;
-  eventId: number;
+  timestamp?: string;
+  eventId?: number;
   data?: any;
   deliveryId?: string;
   driverId?: string;
   driverName?: string;
   message?: string;
   stats?: SimulationStats;
+  clientId?: number;
 }
 
 export interface LocationUpdate {

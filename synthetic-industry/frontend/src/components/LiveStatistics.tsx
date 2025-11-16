@@ -17,6 +17,34 @@ export const LiveStatistics: React.FC<LiveStatisticsProps> = ({ stats, streamCon
         </div>
       ) : (
         <>
+          {/* Dispatcher Info */}
+          {stats.dispatcher && (
+            <div className="bg-gradient-to-r from-purple-900 to-purple-800 rounded-lg p-4 mb-4">
+              <div className="text-purple-200 text-sm mb-1">Assigned Dispatcher</div>
+              <div className="text-xl font-bold text-white mb-2">{stats.dispatcher.displayName}</div>
+              <div className="grid grid-cols-2 gap-2 text-xs md:text-sm text-purple-100">
+                <div>
+                  <span className="text-purple-300">Company:</span>
+                  <div className="font-medium text-white truncate">{stats.dispatcher.company}</div>
+                </div>
+                <div>
+                  <span className="text-purple-300">Clearance:</span>
+                  <div className="font-medium text-white capitalize">
+                    {stats.dispatcher.credentials.clearanceLevel}
+                  </div>
+                </div>
+                <div>
+                  <span className="text-purple-300">Orders:</span>
+                  <div className="font-semibold text-white">{stats.dispatcher.assignedOrders}</div>
+                </div>
+                <div>
+                  <span className="text-purple-300">Drivers:</span>
+                  <div className="font-semibold text-white">{stats.dispatcher.assignedDrivers}</div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Driver Info */}
           <div className="bg-gradient-to-r from-blue-900 to-blue-800 rounded-lg p-4 mb-4">
             <div className="text-blue-200 text-sm mb-1">Current Driver</div>

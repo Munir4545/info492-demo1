@@ -20,7 +20,7 @@ const {
 const { getDriverStats } = require('./driverManager');
 
 const app = express();
-const PORT = process.env.PORT || 3002;
+const PORT = process.env.PORT || 8007;
 
 // Middleware
 app.use(cors({
@@ -71,10 +71,10 @@ app.get('/api/synthetic/stream', (req, res) => {
  * POST /api/synthetic/start
  * Start the 24-hour agentic simulation
  */
-app.post('/api/synthetic/start', (req, res) => {
+app.post('/api/synthetic/start', async (req, res) => {
   try {
     const { duration = 24 } = req.body;
-    startSimulation(duration);
+    await startSimulation(duration);
     res.json({
       success: true,
       message: `Simulation started for ${duration} hours`,

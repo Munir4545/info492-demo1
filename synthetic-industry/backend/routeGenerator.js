@@ -1,8 +1,10 @@
 // Route Generator - Single driver with multiple deliveries along one route
 
 const { mainRoute } = require('./routeDefinitions');
-const { assignCargo, getRandomPatient, getRandomPharmacy } = require('./medicationPool');
+const { assignCargo, getRandomPatient } = require('./medicationPool');
 const { assignDriver } = require('./driverManager');
+const { assignDispatcher } = require('./dispatcherManager');
+const { snapToRoad, getRouteBetween } = require('./osrmClient');
 
 /**
  * Generate a random dropoff location along the main route
@@ -48,9 +50,111 @@ function generateDropoffLocation() {
  * @param {Date} startTime - Simulation start time
  * @returns {Object} Complete route manifest with driver and all deliveries
  */
-function generateRouteManifest(startTime) {
+const EARTH_RADIUS_METERS = 6_371_000;
+
+const toRadians = value => (value * Math.PI) / 180;
+
+const distanceBetween = (a, b) => {
+  const dLat = toRadians(b.lat - a.lat);
+  const dLng = toRadians(b.lng - a.lng);
+  const lat1 = toRadians(a.lat);
+  const lat2 = toRadians(b.lat);
+
+  const sinLat = Math.sin(dLat / 2);
+  const sinLng = Math.sin(dLng / 2);
+
+  const haversine =
+    sinLat * sinLat + Math.cos(lat1) * Math.cos(lat2) * sinLng * sinLng;
+
+  const angularDistance = 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+  return EARTH_RADIUS_METERS * angularDistance;
+};
+
+function decodePolyline(encoded, precision = 6) {
+  if (!encoded) return [];
+
+  let index = 0;
+  const len = encoded.length;
+  const coordinates = [];
+  let lat = 0;
+  let lng = 0;
+  const factor = Math.pow(10, precision);
+
+  while (index < len) {
+    let b;
+    let shift = 0;
+    let result = 0;
+
+    do {
+      b = encoded.charCodeAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+
+    const deltaLat = (result & 1 ? ~(result >> 1) : result >> 1);
+    lat += deltaLat;
+
+    shift = 0;
+    result = 0;
+
+    do {
+      b = encoded.charCodeAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+
+    const deltaLng = (result & 1 ? ~(result >> 1) : result >> 1);
+    lng += deltaLng;
+
+    coordinates.push({
+      lat: lat / factor,
+      lng: lng / factor
+    });
+  }
+
+  return coordinates;
+}
+
+async function snapCoordinate(point, fallback) {
+  try {
+    const snapped = await snapToRoad(point);
+    return {
+      lat: snapped.lat,
+      lng: snapped.lng,
+      snapped: true
+    };
+  } catch (error) {
+    console.warn('OSRM nearest lookup failed, using fallback coords:', error.message);
+    return fallback;
+  }
+}
+
+async function buildRouteSegment(start, end) {
+  try {
+    const route = await getRouteBetween(start, end);
+    const coordinates = decodePolyline(route.geometry);
+
+    return {
+      geometry: route.geometry,
+      distance: route.distance,
+      duration: route.duration,
+      coordinates
+    };
+  } catch (error) {
+    console.warn('OSRM route lookup failed, using straight-line path:', error.message);
+    return {
+      geometry: null,
+      distance: distanceBetween(start, end),
+      duration: null,
+      coordinates: [start, end]
+    };
+  }
+}
+
+async function generateRouteManifest(startTime) {
   // Select ONE driver for this entire route
   const driver = assignDriver();
+  const dispatcher = assignDispatcher();
   
   // Get starting pharmacy
   const pharmacy = mainRoute.pharmacy;
@@ -84,17 +188,25 @@ function generateRouteManifest(startTime) {
   for (let i = 0; i < dropoffPoints.length; i++) {
     const point = dropoffPoints[i];
     const deliveryId = `D_${String(i + 1).padStart(3, '0')}`;
-    
-    // Calculate travel time to this dropoff (3-15 minutes between stops)
-    const travelMinutes = 3 + Math.random() * 12;
-    const pickupTime = i === 0 
-      ? new Date(currentTime.getTime() + 5 * 60000) // First pickup after 5 min
+
+    const candidateLocation = {
+      lat: point.dropoff.lat,
+      lng: point.dropoff.lng
+    };
+
+    const snappedDestination = await snapCoordinate(candidateLocation, candidateLocation);
+
+    const startCoords = i === 0 ? pharmacy.coords : deliveries[i - 1].destination;
+    const routeSegment = await buildRouteSegment(startCoords, snappedDestination);
+    const travelMinutes = Math.max(3, (routeSegment.duration || 0) / 60 || 0);
+
+    const pickupTime = i === 0
+      ? new Date(currentTime.getTime() + Math.max(5, travelMinutes) * 60000)
       : new Date(currentTime.getTime() + travelMinutes * 60000);
-    
-    // Calculate dropoff time (2-5 minutes for dropoff)
+
     const dropoffDuration = 2 + Math.random() * 3;
     const estimatedDropoff = new Date(pickupTime.getTime() + dropoffDuration * 60000);
-    
+
     // Calculate time remaining based on criticality
     let timeRemaining;
     if (point.cargo.criticality === 'critical') {
@@ -117,7 +229,7 @@ function generateRouteManifest(startTime) {
       driverPersona: driver.persona,
       pharmacy: pharmacy.name,
       pharmacyCoords: pharmacy.coords,
-      destination: { lat: point.dropoff.lat, lng: point.dropoff.lng },
+      destination: { lat: snappedDestination.lat, lng: snappedDestination.lng },
       medication: point.cargo.medication,
       criticality: point.cargo.criticality,
       urgency: point.cargo.urgency,
@@ -130,11 +242,17 @@ function generateRouteManifest(startTime) {
       estimatedDuration: Math.round(dropoffDuration),
       createdAt: startTime.toISOString(),
       currentLocation: i === 0 ? pharmacy.coords : previousLocation,
-      dispatcherNotes: `Delivery ${i + 1}/${numDeliveries} - ${point.cargo.criticality.toUpperCase()} priority`
+      dispatcherNotes: `Delivery ${i + 1}/${numDeliveries} - ${point.cargo.criticality.toUpperCase()} priority`,
+      route: {
+        geometry: routeSegment.geometry,
+        distance: routeSegment.distance,
+        duration: routeSegment.duration,
+        coordinates: routeSegment.coordinates
+      }
     };
     
     deliveries.push(delivery);
-    previousLocation = point.dropoff;
+    previousLocation = snappedDestination;
     currentTime = estimatedDropoff;
   }
   
@@ -152,6 +270,7 @@ function generateRouteManifest(startTime) {
       persona: driver.persona,
       vulnerabilityScore: driver.vulnerabilityScore
     },
+    dispatcher,
     routeName: mainRoute.name,
     startTime: startTime.toISOString(),
     estimatedEndTime: routeEndTime.toISOString(),
@@ -212,13 +331,15 @@ function calculateCurrentLocation(manifest, currentTime, currentDeliveryIndex) {
   // Calculate progress between locations
   const elapsed = currentTime.getTime() - startTime.getTime();
   const duration = endTime.getTime() - startTime.getTime();
-  const progress = Math.min(1, Math.max(0, elapsed / duration));
-  
+  const progress = duration <= 0 ? 1 : Math.min(1, Math.max(0, elapsed / duration));
+
+  const interpolated = interpolateAlongRoute(currentDelivery.route, progress, startLoc, endLoc);
+
   return {
-    lat: startLoc.lat + (endLoc.lat - startLoc.lat) * progress,
-    lng: startLoc.lng + (endLoc.lng - startLoc.lng) * progress,
-    progress,
-    heading: calculateHeading(startLoc, endLoc)
+    lat: interpolated.lat,
+    lng: interpolated.lng,
+    progress: interpolated.progress,
+    heading: interpolated.heading
   };
 }
 
@@ -230,6 +351,66 @@ function calculateHeading(from, to) {
   const dLat = to.lat - from.lat;
   const angle = Math.atan2(dLng, dLat) * 180 / Math.PI;
   return (angle + 360) % 360;
+}
+
+function interpolateAlongRoute(route, progress, fallbackStart, fallbackEnd) {
+  if (!route || !route.coordinates || route.coordinates.length < 2) {
+    return {
+      lat: fallbackStart.lat + (fallbackEnd.lat - fallbackStart.lat) * progress,
+      lng: fallbackStart.lng + (fallbackEnd.lng - fallbackStart.lng) * progress,
+      heading: calculateHeading(fallbackStart, fallbackEnd),
+      progress
+    };
+  }
+
+  const totalDistance = route.distance || route.coordinates.reduce((acc, coord, idx) => {
+    if (idx === 0) return 0;
+    return acc + distanceBetween(route.coordinates[idx - 1], coord);
+  }, 0);
+
+  if (totalDistance === 0) {
+    const finalPoint = route.coordinates[route.coordinates.length - 1];
+    return {
+      lat: finalPoint.lat,
+      lng: finalPoint.lng,
+      heading: calculateHeading(fallbackStart, fallbackEnd),
+      progress
+    };
+  }
+
+  const targetDistance = Math.max(0, Math.min(progress, 1)) * totalDistance;
+
+  let traversed = 0;
+  for (let i = 1; i < route.coordinates.length; i++) {
+    const segmentStart = route.coordinates[i - 1];
+    const segmentEnd = route.coordinates[i];
+    const segmentDistance = distanceBetween(segmentStart, segmentEnd);
+
+    if (traversed + segmentDistance >= targetDistance) {
+      const segmentProgress = segmentDistance === 0
+        ? 0
+        : (targetDistance - traversed) / segmentDistance;
+      const lat = segmentStart.lat + (segmentEnd.lat - segmentStart.lat) * segmentProgress;
+      const lng = segmentStart.lng + (segmentEnd.lng - segmentStart.lng) * segmentProgress;
+      return {
+        lat,
+        lng,
+        heading: calculateHeading(segmentStart, segmentEnd),
+        progress
+      };
+    }
+
+    traversed += segmentDistance;
+  }
+
+  const finalPoint = route.coordinates[route.coordinates.length - 1];
+  const prevPoint = route.coordinates[route.coordinates.length - 2] || fallbackStart;
+  return {
+    lat: finalPoint.lat,
+    lng: finalPoint.lng,
+    heading: calculateHeading(prevPoint, finalPoint),
+    progress: Math.min(progress, 1)
+  };
 }
 
 module.exports = {
