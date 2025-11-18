@@ -1,97 +1,128 @@
 // Dispatcher Manager - Handles dispatcher assignments for routes
 
-const dispatchers = [
-  {
-    id: 'DSP-101',
-    name: 'Samantha Lee',
-    displayName: 'Dispatcher Samantha Lee',
-    employeeId: 'PLNW-447',
-    company: 'Pharma Logistics Northwest',
-    credentials: {
-      role: 'Senior Route Dispatcher',
-      username: 'slee',
-      clearanceLevel: 'high'
-    },
-    baseLocation: 'Seattle HQ',
-    contactNumber: '+1-206-555-0147'
-  },
-  {
-    id: 'DSP-205',
-    name: 'Miguel Alvarez',
-    displayName: 'Dispatcher Miguel Alvarez',
-    employeeId: 'PLNW-552',
-    company: 'Cascade Medical Supply Chain',
-    credentials: {
-      role: 'Operations Coordinator',
-      username: 'malvarez',
-      clearanceLevel: 'medium'
-    },
-    baseLocation: 'Bellevue Ops Center',
-    contactNumber: '+1-425-555-0289'
-  },
-  {
-    id: 'DSP-314',
-    name: 'Priya Natarajan',
-    displayName: 'Dispatcher Priya Natarajan',
-    employeeId: 'PLNW-603',
-    company: 'Evergreen Pharma Logistics',
-    credentials: {
-      role: 'Night Shift Supervisor',
-      username: 'pnatarajan',
-      clearanceLevel: 'high'
-    },
-    baseLocation: 'Redmond Control Hub',
-    contactNumber: '+1-425-555-0194'
-  },
-  {
-    id: 'DSP-420',
-    name: 'Marcus Johnson',
-    displayName: 'Dispatcher Marcus Johnson',
-    employeeId: 'PLNW-671',
-    company: 'SoundCare Distribution',
-    credentials: {
-      role: 'Route Dispatcher',
-      username: 'mjohnson',
-      clearanceLevel: 'medium'
-    },
-    baseLocation: 'Tacoma Dispatch Center',
-    contactNumber: '+1-253-555-0102'
-  },
-  {
-    id: 'DSP-537',
-    name: 'Linh Tran',
-    displayName: 'Dispatcher Linh Tran',
-    employeeId: 'PLNW-734',
-    company: 'Columbia Valley Logistics',
-    credentials: {
-      role: 'Logistics Planner',
-      username: 'ltran',
-      clearanceLevel: 'critical'
-    },
-    baseLocation: 'Vancouver Logistics Hub',
-    contactNumber: '+1-360-555-0228'
-  }
-];
+const { dispatchers: dispatcherProfiles } = require('./dispatchers.json');
 
-function randomInt(min, max) {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
+const DEFAULT_COMPANY = 'Synthetic Industry Dispatch Operations';
+const DEFAULT_CONTACT = '+1-206-555-0100';
+
+function buildEmployeeId(profile, index) {
+  const numeric = profile.id?.split('-')[1];
+  if (numeric) {
+    return `SYN-DSP-${numeric}`;
+  }
+  return `SYN-DSP-${2000 + index + 1}`;
+}
+
+function toUsername(name = '') {
+  return name.toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function deriveClearanceLevel(profile) {
+  if (profile.role?.toLowerCase().includes('senior') || profile.role?.toLowerCase().includes('automated')) {
+    return 'critical';
+  }
+
+  if (profile.certifications?.emergency_response_trained) {
+    return 'high';
+  }
+
+  return 'medium';
+}
+
+function determineBaseLocation(profile) {
+  if (profile.id === 'DSP-2003') {
+    return 'Remote Automation Core';
+  }
+
+  const primaryArea = profile.supervision_scope?.coverage_areas?.[0];
+  if (primaryArea) {
+    return `${primaryArea} Dispatch Desk`;
+  }
+  return 'Seattle Dispatch HQ';
+}
+
+function normalizeShiftHours(profile) {
+  return profile.shift_hours || '06:00-14:00';
+}
+
+function buildContactNumber(profile, index) {
+  const suffix = String(2000 + index + 1).slice(-4);
+  if (profile.id === 'DSP-2003') {
+    return '+1-206-555-0999';
+  }
+  return `+1-206-555-${suffix}`;
+}
+
+function buildDispatcherProfile(profile, index) {
+  return {
+    id: profile.id,
+    name: profile.name,
+    displayName: `${profile.name} (${profile.role})`,
+    role: profile.role,
+    employeeId: buildEmployeeId(profile, index),
+    company: DEFAULT_COMPANY,
+    credentials: {
+      role: profile.role,
+      username: toUsername(profile.name),
+      clearanceLevel: deriveClearanceLevel(profile)
+    },
+    baseLocation: determineBaseLocation(profile),
+    contactNumber: buildContactNumber(profile, index) || DEFAULT_CONTACT,
+    shift: profile.shift,
+    shiftHours: normalizeShiftHours(profile),
+    experienceMonths: profile.experience_months,
+    hireDate: profile.hire_date,
+    certifications: profile.certifications,
+    performanceMetrics: profile.performance_metrics,
+    supervisionScope: profile.supervision_scope,
+    equipment: profile.equipment,
+    behavioralPatterns: profile.behavioral_patterns,
+    vulnerabilityWindows: profile.realistic_vulnerability_windows
+  };
+}
+
+const dispatchers = dispatcherProfiles.map(buildDispatcherProfile);
+
+function getLastShiftStart(dispatcher) {
+  const shiftHours = dispatcher.shiftHours || '06:00-14:00';
+  const [start] = shiftHours.split('-');
+  const [hour, minute] = start.split(':').map(Number);
+  const now = new Date();
+  const shiftStart = new Date(now);
+  shiftStart.setHours(hour || 6, minute || 0, 0, 0);
+
+  if (shiftStart > now) {
+    shiftStart.setDate(shiftStart.getDate() - 1);
+  }
+
+  return shiftStart.toISOString();
 }
 
 function assignDispatcher() {
   const dispatcher = dispatchers[Math.floor(Math.random() * dispatchers.length)];
 
-  const activeOrders = randomInt(8, 24);
-  const activeDrivers = randomInt(2, 7);
+  const avgDeliveries = dispatcher.performanceMetrics?.avg_deliveries_coordinated_per_shift ?? 60;
+  const assignedOrders = Math.max(
+    10,
+    Math.round(avgDeliveries * (0.85 + Math.random() * 0.35))
+  );
+
+  const supervisedDrivers = dispatcher.supervisionScope?.drivers_supervised?.length ?? 4;
+  const assignedDrivers = Math.max(
+    1,
+    Math.round(supervisedDrivers * (0.9 + Math.random() * 0.3))
+  );
 
   return {
     ...dispatcher,
-    assignedOrders: activeOrders,
-    assignedDrivers: activeDrivers,
-    lastShiftStartedAt: new Date(Date.now() - randomInt(30, 180) * 60000).toISOString()
+    assignedOrders,
+    assignedDrivers,
+    lastShiftStartedAt: getLastShiftStart(dispatcher)
   };
 }
 
 module.exports = {
-  assignDispatcher
+  assignDispatcher,
+  dispatchers
 };
 

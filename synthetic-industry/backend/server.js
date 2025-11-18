@@ -14,7 +14,9 @@ const {
   getActiveDeliveries,
   getCompletedDeliveries,
   addClient,
-  removeClient
+  removeClient,
+  applyGpsSpoof,
+  pushApiAlert
 } = require('./synthetic-stream');
 
 const { getDriverStats } = require('./driverManager');
@@ -223,6 +225,46 @@ app.get('/api/synthetic/drivers', (req, res) => {
   res.json({
     drivers: getDriverStats()
   });
+});
+
+app.post('/api/synthetic/attack/gps-spoof', (req, res) => {
+  try {
+    const { lat, lng, durationMs, message } = req.body || {};
+    if (typeof lat !== 'number' || typeof lng !== 'number') {
+      return res.status(400).json({ error: 'lat and lng are required numeric values' });
+    }
+    const result = applyGpsSpoof({
+      location: { lat, lng },
+      durationMs: typeof durationMs === 'number' ? durationMs : undefined,
+      message
+    });
+    res.json({
+      success: true,
+      spoof: result
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+app.post('/api/synthetic/attack/api-alerts', (req, res) => {
+  try {
+    const { alerts } = req.body || {};
+    const payloads = Array.isArray(alerts) && alerts.length > 0 ? alerts : [req.body || {}];
+    const results = payloads.map(alert => pushApiAlert(alert));
+    res.json({
+      success: true,
+      alerts: results
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      error: error.message
+    });
+  }
 });
 
 // ================== Health Check ==================

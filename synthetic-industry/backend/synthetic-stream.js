@@ -22,6 +22,9 @@ let simulationState = {
   dispatcher: null
 };
 
+let gpsSpoofState = null;
+let apiAlertsHistory = [];
+
 // Interval references
 let progressInterval = null;
 let dispatcherInterval = null;
@@ -106,7 +109,40 @@ function updateRouteProgress() {
   
   if (currentDelivery.status === 'en_route') {
     // Calculate and broadcast current location
-    const location = calculateCurrentLocation(manifest, now, currentIndex);
+    let location = calculateCurrentLocation(manifest, now, currentIndex);
+    
+    if (gpsSpoofState) {
+      if (Date.now() >= gpsSpoofState.expiresAt) {
+        broadcastEvent({
+          type: 'gps_spoof_resolved',
+          data: {
+            routeId: manifest.routeId,
+            driverId: manifest.driver.id,
+            message: 'GPS spoof window expired. Driver back on planned route.'
+          }
+        });
+        gpsSpoofState = null;
+      } else {
+        if (!gpsSpoofState.announced) {
+          gpsSpoofState.announced = true;
+          broadcastEvent({
+            type: 'gps_spoof_applied',
+            data: {
+              routeId: manifest.routeId,
+              driverId: manifest.driver.id,
+              message: gpsSpoofState.message,
+              location: gpsSpoofState.location
+            }
+          });
+        }
+        location = {
+          lat: gpsSpoofState.location.lat,
+          lng: gpsSpoofState.location.lng,
+          heading: location.heading,
+          progress: location.progress
+        };
+      }
+    }
     
     broadcastEvent({
       type: 'location_update',
@@ -319,6 +355,8 @@ function stopSimulation() {
     simulationState.routeManifest.status = 'completed';
   }
   simulationState.dispatcher = null;
+  gpsSpoofState = null;
+  apiAlertsHistory = [];
   
   broadcastEvent({
     type: 'simulation_stopped',
@@ -369,6 +407,53 @@ function resumeSimulation() {
   broadcastEvent({
     type: 'simulation_resumed'
   });
+}
+
+function triggerGpsSpoof({ location, durationMs = 60000, message }) {
+  if (!simulationState.routeManifest) {
+    throw new Error('No active route to spoof');
+  }
+  if (!location || typeof location.lat !== 'number' || typeof location.lng !== 'number') {
+    throw new Error('Valid location required (lat/lng numbers)');
+  }
+  gpsSpoofState = {
+    location,
+    expiresAt: Date.now() + durationMs,
+    message: message || 'GPS spoof in effect',
+    requestedAt: new Date().toISOString(),
+    announced: false
+  };
+  broadcastEvent({
+    type: 'gps_spoof_requested',
+    data: {
+      routeId: simulationState.routeManifest.routeId,
+      driverId: simulationState.routeManifest.driver.id,
+      location,
+      durationMs,
+      message: gpsSpoofState.message
+    }
+  });
+  return gpsSpoofState;
+}
+
+function pushApiAlert(alert = {}) {
+  const payload = {
+    id: alert.id || `api_alert_${Date.now()}`,
+    severity: alert.severity || 'warning',
+    source: alert.source || 'Dispatcher API',
+    message: alert.message || 'Injected alert: anomaly detected across dispatcher API stream.',
+    createdAt: new Date().toISOString(),
+    metadata: alert.metadata || null
+  };
+  apiAlertsHistory.push(payload);
+  if (apiAlertsHistory.length > 100) {
+    apiAlertsHistory.shift();
+  }
+  broadcastEvent({
+    type: 'api_alert',
+    data: payload
+  });
+  return payload;
 }
 
 /**
@@ -471,5 +556,7 @@ module.exports = {
   getCompletedDeliveries,
   addClient,
   removeClient,
-  broadcastEvent
+  broadcastEvent,
+  applyGpsSpoof: triggerGpsSpoof,
+  pushApiAlert
 };

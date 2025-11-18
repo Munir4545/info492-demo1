@@ -1,11 +1,21 @@
 import React, { useMemo } from 'react';
 import { Coordinates, RouteManifest, SimulationStats, StreamEvent } from '../types';
 
+interface ApiAlert {
+  id: string;
+  severity: string;
+  source?: string;
+  message: string;
+  createdAt: string;
+  metadata?: unknown;
+}
+
 interface ApiDataPanelProps {
   stats: SimulationStats;
   manifest: RouteManifest | null;
   driverLocation: Coordinates | null;
   latestEvent?: StreamEvent | null;
+  apiAlerts?: ApiAlert[];
 }
 
 const prettyPrint = (value: unknown) => JSON.stringify(value ?? null, null, 2);
@@ -14,7 +24,8 @@ export const ApiDataPanel: React.FC<ApiDataPanelProps> = ({
   stats,
   manifest,
   driverLocation,
-  latestEvent
+  latestEvent,
+  apiAlerts = []
 }) => {
   const latestEventSummary = useMemo(() => {
     if (!latestEvent) return null;
@@ -71,6 +82,29 @@ export const ApiDataPanel: React.FC<ApiDataPanelProps> = ({
 {prettyPrint(driverLocation)}
           </pre>
         </section>
+
+        {apiAlerts.length > 0 && (
+          <section>
+            <header className="flex items-center justify-between mb-2">
+              <h3 className="text-lg font-semibold text-rose-300">Injected API Alerts</h3>
+              <span className="text-gray-500 text-xs">
+                {apiAlerts.length} active
+              </span>
+            </header>
+            <div className="space-y-2 max-h-48 overflow-y-auto">
+              {apiAlerts.slice().reverse().map((alert) => (
+                <div key={alert.id} className="bg-gray-900 rounded-lg p-3 border border-gray-700">
+                  <div className="flex items-center justify-between text-xs text-gray-400">
+                    <span>{alert.source || 'Dispatch API'}</span>
+                    <span className="uppercase tracking-wide text-rose-300">{alert.severity}</span>
+                  </div>
+                  <p className="text-sm text-gray-100 mt-1">{alert.message}</p>
+                  <p className="text-[10px] text-gray-500 mt-1">{new Date(alert.createdAt).toLocaleTimeString()}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {latestEventSummary && (
           <section>

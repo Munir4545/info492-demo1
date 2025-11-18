@@ -4,6 +4,7 @@ import DeliveryMap from '../components/map/DeliveryMap';
 import AttackMetricsPanel from '../components/metrics/AttackMetricsPanel';
 import LLMConsole from '../components/console/LLMConsole';
 import InterventionQueue from '../components/console/InterventionQueue';
+import DecisionEnginePanel from '../components/console/DecisionEnginePanel';
 import DeployModal from '../components/modals/DeployModal';
 import {
   ResponsiveContainer,
@@ -53,7 +54,8 @@ const HackerDashboard = () => {
     setDeployModalOpen,
     startAttack,
     history,
-    exportLatestReport
+    exportLatestReport,
+    backendStream
   } = useAttackContext();
   const [mode, setMode] = useState<Mode>('deploy');
 
@@ -84,7 +86,8 @@ const HackerDashboard = () => {
             <h1 className="text-2xl font-semibold tracking-tight text-text-primary">Pharma Attack Simulator</h1>
             <p className="mt-1 text-sm text-text-secondary">
               Target compromise threshold: {simulation.targetCompromisePercentage}% • Phase: {simulation.phase.toUpperCase()}
-              {simulation.paused ? ' (PAUSED)' : ''} • Time: T+{simulation.elapsedMinutes}m
+              {simulation.paused ? ' (PAUSED)' : ''} • Time: T+{simulation.elapsedMinutes}m • Backend:{' '}
+              {backendStream.attackId ? `#${backendStream.attackId} (${backendStream.status})` : 'not running'}
             </p>
           </div>
           <div className="flex gap-3">
@@ -266,14 +269,17 @@ const HackerDashboard = () => {
               </div>
               <AttackMetricsPanel />
             </div>
-            <div className="grid gap-6 lg:grid-cols-[1.3fr_0.7fr]">
+            <div className="grid gap-6 xl:grid-cols-[1.3fr_0.7fr]">
               <div className="border border-surface-border rounded-xl bg-white p-4">
                 <h3 className="text-lg font-semibold text-text-primary mb-3">LLM Decision Console</h3>
                 <LLMConsole />
               </div>
-              <div className="border border-surface-border rounded-xl bg-white p-4">
-                <h3 className="text-lg font-semibold text-text-primary mb-3">Human-in-the-Loop Control</h3>
-                <InterventionQueue />
+              <div className="space-y-6">
+                <div className="border border-surface-border rounded-xl bg-white p-4">
+                  <h3 className="text-lg font-semibold text-text-primary mb-3">Human-in-the-Loop Control</h3>
+                  <InterventionQueue />
+                </div>
+                <DecisionEnginePanel />
               </div>
             </div>
           </section>

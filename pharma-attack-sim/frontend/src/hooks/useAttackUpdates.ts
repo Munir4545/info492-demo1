@@ -43,6 +43,28 @@ export interface LLMLog {
   data: any;
 }
 
+export interface DecisionEvaluationEvent {
+  attackId: number;
+  simMinute: number;
+  vector: string;
+  detectionRisk: number;
+  compromiseRate: number;
+  cascadeOpportunity?: boolean;
+  aggressiveness?: number;
+  averagePatientHealth?: number;
+  reason?: string;
+}
+
+export interface DecisionQueueEvent {
+  attackId: number;
+  vector: string;
+  severity: string;
+  simMinute: number;
+  detectionRisk: number;
+  compromiseRate: number;
+  description: string;
+}
+
 export const useAttackUpdates = (attackId: number | null) => {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [messages, setMessages] = useState<AgentMessage[]>([]);
@@ -51,6 +73,18 @@ export const useAttackUpdates = (attackId: number | null) => {
   const [attackPaused, setAttackPaused] = useState<AttackPaused | null>(null);
   const [llmLogs, setLlmLogs] = useState<LLMLog[]>([]);
   const [isConnected, setIsConnected] = useState(false);
+  const [decisionEvaluations, setDecisionEvaluations] = useState<DecisionEvaluationEvent[]>([]);
+  const [decisionQueue, setDecisionQueue] = useState<DecisionQueueEvent[]>([]);
+
+  useEffect(() => {
+    setMessages([]);
+    setStepUpdates([]);
+    setAttackCompleted(null);
+    setAttackPaused(null);
+    setLlmLogs([]);
+    setDecisionEvaluations([]);
+    setDecisionQueue([]);
+  }, [attackId]);
 
   useEffect(() => {
     if (!attackId) return;
@@ -119,6 +153,27 @@ export const useAttackUpdates = (attackId: number | null) => {
       }
     });
 
+    newSocket.on('decision:evaluation', (data: DecisionEvaluationEvent) => {
+      if (data.attackId === attackId) {
+        setDecisionEvaluations(prev => {
+          const next = [...prev, data];
+          return next.length > 50 ? next.slice(next.length - 50) : next;
+        });
+      }
+    });
+
+    newSocket.on('decision:queued', (data: DecisionQueueEvent) => {
+      if (data.attackId === attackId) {
+        setDecisionQueue(prev => {
+          const filtered = prev.filter(
+            item => !(item.vector === data.vector && item.simMinute === data.simMinute)
+          );
+          const next = [...filtered, data];
+          return next.length > 15 ? next.slice(next.length - 15) : next;
+        });
+      }
+    });
+
     return () => {
       newSocket.disconnect();
     };
@@ -131,7 +186,9 @@ export const useAttackUpdates = (attackId: number | null) => {
     attackCompleted,
     attackPaused,
     llmLogs,
-    isConnected
+    isConnected,
+    decisionEvaluations,
+    decisionQueue
   };
 };
 

@@ -6,7 +6,9 @@ const cors = require('cors');
 const Database = require('better-sqlite3');
 const fs = require('fs');
 const path = require('path');
+const EventEmitter = require('events');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+const fetch = (...args) => import('node-fetch').then(({ default: fetchFn }) => fetchFn(...args));
 const agents = require('./agents');
 const { getAllTiers, getTierData } = require('./auth-tiers');
 const { runAllExperiments } = require('./experiments/dr-chen-experiments');
@@ -24,6 +26,14 @@ const {
   purgeExpiredSessions,
 } = require('./session-manager');
 const humanOversight = require('./human-oversight');
+const decisionEngine = require('./decision-engine');
+const SyntheticClient = require('./synthetic-client');
+
+const SYNTHETIC_API_BASE = (process.env.SYNTHETIC_API_BASE || 'http://localhost:8007').replace(/\/$/, '');
+const AUTO_LOOP_DELAY_MS = parseInt(process.env.AUTO_LOOP_DELAY_MS || '5000', 10);
+
+const SIM_TOTAL_MINUTES = parseInt(process.env.SIM_TOTAL_MINUTES || `${24 * 60}`, 10);
+const SIM_MINUTE_MS = parseInt(process.env.SIM_MINUTE_MS || '1000', 10);
 
 const app = express();
 const server = http.createServer(app);
@@ -39,6 +49,280 @@ app.use(express.json());
 
 // Global attack metrics tracker
 const attackMetricsTracker = new Map();
+const attackEventBus = new EventEmitter();
+
+function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function createAttackRecord(attackConfig) {
+  const stmt = db.prepare('INSERT INTO attacks (config, status) VALUES (?, ?)');
+  const result = stmt.run(JSON.stringify(attackConfig), 'pending');
+  return result.lastInsertRowid;
+}
+
+function kickoffAttack(attackId, attackConfig, syntheticClient = null) {
+  // Mark running
+  const updateStmt = db.prepare('UPDATE attacks SET status = ? WHERE id = ?');
+  updateStmt.run('running', attackId);
+
+  initializeAttackMetrics(attackId);
+
+  decisionEngine.start(attackId, attackConfig, {
+    totalSimMinutes: SIM_TOTAL_MINUTES,
+    simMinuteDurationMs: SIM_MINUTE_MS
+  });
+
+  io.emit('attack:started', { attackId });
+  console.log(`[AUTONOMY] Attack ${attackId} started for target ${attackConfig.targetDriver || 'Unknown'}`);
+
+  agents.setMetricsTracker({ getAttackMetrics, updateAttackMetrics });
+
+  const attackPromise = agents.runAttack(attackId, attackConfig, io, db, config, log, syntheticClient)
+    .then((success) => {
+      const finalMetrics = finalizeAttackMetrics(attackId);
+
+      if (finalMetrics) {
+        const completeStmt = db.prepare(`
+          UPDATE attacks SET 
+            status = ?, 
+            success = ?, 
+            completed_at = CURRENT_TIMESTAMP,
+            duration_seconds = ?,
+            compromised_deliveries = ?,
+            affected_patients = ?,
+            critical_medications = ?,
+            financial_impact = ?,
+            time_to_impact_seconds = ?,
+            detection_delay_seconds = ?,
+            recovery_time_minutes = ?,
+            phishing_success = ?,
+            phishing_effectiveness = ?,
+            gps_success = ?,
+            gps_effectiveness = ?,
+            api_success = ?,
+            api_effectiveness = ?
+          WHERE id = ?
+        `);
+        completeStmt.run(
+          'completed', 
+          success ? 1 : 0,
+          finalMetrics.duration_seconds,
+          finalMetrics.compromised_deliveries,
+          finalMetrics.affected_patients,
+          finalMetrics.critical_medications,
+          finalMetrics.financial_impact,
+          finalMetrics.time_to_impact_seconds,
+          finalMetrics.detection_delay_seconds,
+          finalMetrics.recovery_time_minutes,
+          finalMetrics.phishing_success,
+          finalMetrics.phishing_effectiveness,
+          finalMetrics.gps_success,
+          finalMetrics.gps_effectiveness,
+          finalMetrics.api_success,
+          finalMetrics.api_effectiveness,
+          attackId
+        );
+      } else {
+        const completeStmt = db.prepare('UPDATE attacks SET status = ?, success = ?, completed_at = CURRENT_TIMESTAMP WHERE id = ?');
+        completeStmt.run('completed', success ? 1 : 0, attackId);
+      }
+
+      io.emit('attack:completed', { attackId, success });
+      decisionEngine.stop(attackId);
+      attackEventBus.emit('attack_completed', { attackId, success });
+      console.log(`[AUTONOMY] Attack ${attackId} completed (success=${success})`);
+    })
+    .catch((error) => {
+      console.error('Attack error:', error);
+      const failStmt = db.prepare('UPDATE attacks SET status = ?, success = ? WHERE id = ?');
+      failStmt.run('failed', 0, attackId);
+      io.emit('attack:failed', { attackId, error: error.message });
+      decisionEngine.stop(attackId);
+      attackEventBus.emit('attack_failed', { attackId, error });
+      console.log(`[AUTONOMY] Attack ${attackId} failed: ${error.message}`);
+    });
+
+  return attackPromise;
+}
+
+async function startSyntheticSimulation(durationHours = 24) {
+  const url = `${SYNTHETIC_API_BASE}/api/synthetic/start`;
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ duration: durationHours })
+    });
+    if (!response.ok) {
+      const text = await response.text();
+      console.warn(`[AUTONOMY] Synthetic start responded with ${response.status}: ${text}`);
+    } else {
+      console.log('[AUTONOMY] Synthetic simulation started.');
+    }
+  } catch (error) {
+    console.error('[AUTONOMY] Failed to start synthetic simulation:', error.message);
+    throw error;
+  }
+}
+
+async function stopSyntheticSimulation() {
+  const url = `${SYNTHETIC_API_BASE}/api/synthetic/stop`;
+  try {
+    const response = await fetch(url, { method: 'POST' });
+    if (!response.ok) {
+      console.warn(`[AUTONOMY] Synthetic stop responded with ${response.status}`);
+    } else {
+      console.log('[AUTONOMY] Synthetic simulation stopped.');
+    }
+  } catch (error) {
+    console.error('[AUTONOMY] Failed to stop synthetic simulation:', error.message);
+  }
+}
+
+async function fetchSyntheticManifest() {
+  const url = `${SYNTHETIC_API_BASE}/api/synthetic/manifest`;
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      return null;
+    }
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    return null;
+  }
+}
+
+async function waitForManifest(timeoutMs = 45000, pollInterval = 2000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const manifest = await fetchSyntheticManifest();
+    if (manifest && manifest.driver) {
+      return manifest;
+    }
+    await delay(pollInterval);
+  }
+  return null;
+}
+
+function buildAttackConfigFromManifest(manifest) {
+  const driverName = manifest?.driver?.displayName || manifest?.driver?.name || 'Unknown Driver';
+  const persona = manifest?.driver?.persona || 'TIME_PRESSURED';
+  const vulnerability = manifest?.driver?.vulnerabilityScore || 70;
+  const derivedRate = Math.min(0.9, Math.max(0.25, vulnerability / 130));
+  const fakeCoords = config?.agents?.gps?.fakeCoordinates || [46.7298, -117.1817];
+  let gpsTarget = null;
+  if (Array.isArray(manifest?.deliveries) && manifest.deliveries.length > 0) {
+    gpsTarget = manifest.deliveries.reduce((best, delivery) => {
+      const dist = Math.hypot(
+        (delivery.destination.lat - fakeCoords[0]),
+        (delivery.destination.lng - fakeCoords[1])
+      );
+      if (!best || dist < best.dist) {
+        return { dist, delivery };
+      }
+      return best;
+    }, null);
+  }
+  return {
+    targetDriver: driverName,
+    targetTier: persona === 'DISPATCHER' ? 'tier3' : 'tier2',
+    baseSuccessRate: Number(derivedRate.toFixed(2)),
+    vectorPlan: ['phishing', 'gps', 'api'],
+    manifestSummary: {
+      routeId: manifest?.routeId,
+      totalDeliveries: manifest?.totalDeliveries,
+      dispatcher: manifest?.dispatcher?.displayName || manifest?.dispatcher?.name || null
+    },
+    gpsSpoofAnchorDeliveryId: gpsTarget?.delivery?.id || null,
+    gpsSpoofAnchorSequence: gpsTarget?.delivery?.sequenceNumber || null,
+    gpsSpoofTargetLocation: {
+      lat: fakeCoords[0],
+      lng: fakeCoords[1]
+    }
+  };
+}
+
+const autoRunner = (() => {
+  let active = false;
+  let cycle = 0;
+  let currentAttackId = null;
+  let loopPromise = null;
+
+  async function runLoop() {
+    while (active) {
+      cycle += 1;
+      console.log(`[AUTONOMY] ==== Cycle ${cycle} ====`);
+      try {
+        let syntheticClient = null;
+        try {
+          syntheticClient = new SyntheticClient(SYNTHETIC_API_BASE);
+          await syntheticClient.connect();
+          console.log('[AUTONOMY] Starting synthetic route generation...');
+          await startSyntheticSimulation(24);
+          const manifest = await waitForManifest();
+          if (!manifest) {
+            throw new Error('Timed out waiting for synthetic manifest');
+          }
+          console.log(`[AUTONOMY] Received manifest ${manifest.routeId} for driver ${manifest.driver?.displayName || manifest.driver?.name}`);
+          const attackConfig = buildAttackConfigFromManifest(manifest);
+          attackConfig.syntheticManifest = manifest;
+          const attackId = createAttackRecord(attackConfig);
+          currentAttackId = attackId;
+          await kickoffAttack(attackId, attackConfig, syntheticClient);
+          await stopSyntheticSimulation();
+        } finally {
+          if (syntheticClient) {
+            await syntheticClient.close().catch(() => {});
+          }
+        }
+      } catch (error) {
+        console.error(`[AUTONOMY] Cycle ${cycle} error: ${error.message}`);
+      } finally {
+        currentAttackId = null;
+      }
+
+      if (!active) break;
+      console.log(`[AUTONOMY] Cycle ${cycle} complete. Waiting ${AUTO_LOOP_DELAY_MS}ms before next cycle.`);
+      await delay(AUTO_LOOP_DELAY_MS);
+    }
+    console.log('[AUTONOMY] Auto attack runner idle.');
+  }
+
+  async function start() {
+    if (active) {
+      return { started: false, message: 'Auto runner already active' };
+    }
+    active = true;
+    cycle = 0;
+    console.log('[AUTONOMY] Auto attack runner engaged.');
+    loopPromise = runLoop().catch(error => {
+      console.error('[AUTONOMY] Runner crashed:', error);
+      active = false;
+    });
+    return { started: true };
+  }
+
+  async function stop() {
+    if (!active) {
+      return { stopped: false, message: 'Auto runner not active' };
+    }
+    active = false;
+    console.log('[AUTONOMY] Auto attack runner stopping after current cycle.');
+    return { stopped: true };
+  }
+
+  function status() {
+    return {
+      active,
+      cycle,
+      currentAttackId
+    };
+  }
+
+  return { start, stop, status };
+})();
 
 function initializeAttackMetrics(attackId) {
   attackMetricsTracker.set(attackId, {
@@ -283,6 +567,37 @@ db.exec(`
     expires_at DATETIME,
     FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
   );
+
+  CREATE TABLE IF NOT EXISTS decision_event_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    attack_id INTEGER NOT NULL,
+    event_type TEXT,
+    agent TEXT,
+    vector TEXT,
+    description TEXT,
+    outcome TEXT,
+    impact TEXT,
+    agent_reasoning TEXT,
+    detection_risk REAL,
+    compromise_rate REAL,
+    sim_minute INTEGER,
+    metadata TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS decision_state_snapshots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    attack_id INTEGER NOT NULL,
+    snapshot_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    sim_minute INTEGER,
+    compromised_deliveries INTEGER,
+    total_deliveries INTEGER,
+    compromise_rate REAL,
+    detection_alerts INTEGER,
+    average_patient_health REAL,
+    active_vectors TEXT,
+    metadata TEXT
+  );
 `);
 
 purgeExpiredSessions(db);
@@ -290,37 +605,24 @@ setInterval(() => purgeExpiredSessions(db), 60 * 60 * 1000);
 
 humanOversight.init({ io, log, db });
 
+decisionEngine.init({
+  db,
+  io,
+  humanOversight,
+  triggerAgent: agents.triggerAgent,
+  metricsTracker: { getAttackMetrics, updateAttackMetrics },
+  config,
+  logFn: log,
+  syntheticApiBase: process.env.SYNTHETIC_API_BASE || 'http://localhost:8007'
+});
+
 io.use((socket, next) => {
-  try {
-    const token = socket.handshake.auth?.token || socket.handshake.headers['x-session-token'];
-    if (!token) {
-      return next(new Error('unauthorized'));
-    }
-    
-    // Check if it's a demo token (for showcase/demo purposes)
-    if (token.startsWith('demo-token-')) {
-      socket.user = {
-        id: 'demo-user',
-        username: 'demo-user',
-        displayName: 'Demo Analyst',
-      };
-      return next();
-    }
-    
-    // Regular passkey authentication
-    const user = getSessionUser(db, token);
-    if (!user) {
-      return next(new Error('unauthorized'));
-    }
-    socket.user = {
-      id: user.id,
-      username: user.username,
-      displayName: user.display_name,
-    };
-    return next();
-  } catch (error) {
-    return next(error);
-  }
+  socket.user = {
+    id: 'autonomous-operator',
+    username: 'autonomous',
+    displayName: 'Autonomous Operator'
+  };
+  return next();
 });
 
 // Helper function to log messages
@@ -360,6 +662,8 @@ function log(attackId, agent, message, io, db) {
   
   // Console log
   console.log(`[${agent}] ${message}`);
+
+  decisionEngine.recordExternalEvent({ attackId, agent, message });
 }
 
 // Enhanced broadcast function for attack updates
@@ -438,39 +742,13 @@ function extractToken(req) {
 }
 
 function authenticate(req, res, next) {
-  try {
-    const token = extractToken(req);
-    if (!token) {
-      return res.status(401).json({ error: 'Authentication required' });
-    }
-    
-    // Check if it's a demo token (for showcase/demo purposes)
-    if (token.startsWith('demo-token-')) {
-      req.sessionToken = token;
-      req.user = {
-        id: 'demo-user',
-        username: 'demo-user',
-        displayName: 'Demo Analyst',
-      };
-      return next();
-    }
-    
-    // Regular passkey authentication
-    const user = getSessionUser(db, token);
-    if (!user) {
-      return res.status(401).json({ error: 'Invalid or expired session' });
-    }
-    req.sessionToken = token;
-    req.user = {
-      id: user.id,
-      username: user.username,
-      displayName: user.display_name,
-    };
-    return next();
-  } catch (error) {
-    console.error('Authentication error:', error);
-    return res.status(500).json({ error: 'Authentication failed' });
-  }
+  req.sessionToken = null;
+  req.user = {
+    id: 'autonomous-operator',
+    username: 'autonomous',
+    displayName: 'Autonomous Operator'
+  };
+  return next();
 }
 
 // API endpoints
@@ -480,10 +758,7 @@ app.get('/api/config', authenticate, (req, res) => {
 
 app.post('/api/attacks/create', authenticate, (req, res) => {
   const attackConfig = req.body.config || config.attack;
-  const stmt = db.prepare('INSERT INTO attacks (config, status) VALUES (?, ?)');
-  const result = stmt.run(JSON.stringify(attackConfig), 'pending');
-  const attackId = result.lastInsertRowid;
-  
+  const attackId = createAttackRecord(attackConfig);
   res.json({ attackId });
 });
 
@@ -499,77 +774,7 @@ app.post('/api/attacks/:id/start', authenticate, async (req, res) => {
   
   const attackConfig = JSON.parse(attack.config);
   
-  // Update status
-  const updateStmt = db.prepare('UPDATE attacks SET status = ? WHERE id = ?');
-  updateStmt.run('running', attackId);
-  
-  // Initialize attack metrics tracking
-  initializeAttackMetrics(attackId);
-  
-  io.emit('attack:started', { attackId });
-  
-  // Set metric tracker for agents to use
-  agents.setMetricsTracker({ getAttackMetrics, updateAttackMetrics });
-  
-  // Start attack in background
-  agents.runAttack(attackId, attackConfig, io, db, config, log).then((success) => {
-    // Finalize and save metrics
-    const finalMetrics = finalizeAttackMetrics(attackId);
-    
-    if (finalMetrics) {
-      const completeStmt = db.prepare(`
-        UPDATE attacks SET 
-          status = ?, 
-          success = ?, 
-          completed_at = CURRENT_TIMESTAMP,
-          duration_seconds = ?,
-          compromised_deliveries = ?,
-          affected_patients = ?,
-          critical_medications = ?,
-          financial_impact = ?,
-          time_to_impact_seconds = ?,
-          detection_delay_seconds = ?,
-          recovery_time_minutes = ?,
-          phishing_success = ?,
-          phishing_effectiveness = ?,
-          gps_success = ?,
-          gps_effectiveness = ?,
-          api_success = ?,
-          api_effectiveness = ?
-        WHERE id = ?
-      `);
-      completeStmt.run(
-        'completed', 
-        success ? 1 : 0,
-        finalMetrics.duration_seconds,
-        finalMetrics.compromised_deliveries,
-        finalMetrics.affected_patients,
-        finalMetrics.critical_medications,
-        finalMetrics.financial_impact,
-        finalMetrics.time_to_impact_seconds,
-        finalMetrics.detection_delay_seconds,
-        finalMetrics.recovery_time_minutes,
-        finalMetrics.phishing_success,
-        finalMetrics.phishing_effectiveness,
-        finalMetrics.gps_success,
-        finalMetrics.gps_effectiveness,
-        finalMetrics.api_success,
-        finalMetrics.api_effectiveness,
-        attackId
-      );
-    } else {
-      const completeStmt = db.prepare('UPDATE attacks SET status = ?, success = ?, completed_at = CURRENT_TIMESTAMP WHERE id = ?');
-      completeStmt.run('completed', success ? 1 : 0, attackId);
-    }
-    
-    io.emit('attack:completed', { attackId, success });
-  }).catch((error) => {
-    console.error('Attack error:', error);
-    const failStmt = db.prepare('UPDATE attacks SET status = ?, success = ? WHERE id = ?');
-    failStmt.run('failed', 0, attackId);
-    io.emit('attack:failed', { attackId, error: error.message });
-  });
-  
+  kickoffAttack(attackId, attackConfig, null);
   res.json({ success: true, attackId });
 });
 
@@ -612,6 +817,7 @@ app.post('/api/attacks/:id/stop', authenticate, (req, res) => {
   io.emit('attack:stopped', { attackId });
   
   console.log(`Attack ${attackId} stopped by user`);
+  decisionEngine.stop(attackId);
   res.json({ success: true, message: 'Attack stopped' });
 });
 
@@ -650,6 +856,32 @@ app.get('/api/attacks/:id/suggestions', authenticate, (req, res) => {
   res.json({ suggestions });
 });
 
+app.get('/api/attacks/:id/events', authenticate, (req, res) => {
+  const attackId = parseInt(req.params.id);
+  const stmt = db.prepare(`
+    SELECT id, event_type, agent, vector, description, outcome, impact, agent_reasoning,
+           detection_risk, compromise_rate, sim_minute, metadata, created_at
+    FROM decision_event_logs
+    WHERE attack_id = ?
+    ORDER BY id ASC
+  `);
+  const events = stmt.all(attackId);
+  res.json({ attackId, events });
+});
+
+app.get('/api/attacks/:id/snapshots', authenticate, (req, res) => {
+  const attackId = parseInt(req.params.id);
+  const stmt = db.prepare(`
+    SELECT id, snapshot_time, sim_minute, compromised_deliveries, total_deliveries,
+           compromise_rate, detection_alerts, average_patient_health, active_vectors, metadata
+    FROM decision_state_snapshots
+    WHERE attack_id = ?
+    ORDER BY sim_minute ASC
+  `);
+  const snapshots = stmt.all(attackId);
+  res.json({ attackId, snapshots });
+});
+
 app.get('/api/hil/pending', authenticate, (req, res) => {
   const actions = humanOversight.getPendingActions();
   res.json({ actions });
@@ -678,6 +910,31 @@ app.post('/api/hil/:id/reject', authenticate, (req, res) => {
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
+});
+
+app.post('/api/autonomous/start', authenticate, async (req, res) => {
+  const result = await autoRunner.start();
+  res.json({
+    success: true,
+    result,
+    status: autoRunner.status()
+  });
+});
+
+app.post('/api/autonomous/stop', authenticate, async (req, res) => {
+  const result = await autoRunner.stop();
+  res.json({
+    success: true,
+    result,
+    status: autoRunner.status()
+  });
+});
+
+app.get('/api/autonomous/status', authenticate, (req, res) => {
+  res.json({
+    success: true,
+    status: autoRunner.status()
+  });
 });
 
 // Manual agent trigger endpoint

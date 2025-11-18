@@ -1,19 +1,100 @@
-// Driver Manager - Matching pharma-attack-sim driver profiles
+// Driver Manager - Backed by synthetic-industry driver profiles
 
-const driverPool = [
-  { id: 'driver_7', name: 'Jerry', number: 7, persona: 'TIME_PRESSURED', vulnerabilityScore: 92 },
-  { id: 'driver_14', name: 'Sofia', number: 14, persona: 'OVERLOADED', vulnerabilityScore: 87 },
-  { id: 'driver_3', name: 'Marcus', number: 3, persona: 'ROUTINE', vulnerabilityScore: 74 },
-  { id: 'driver_11', name: 'Priya', number: 11, persona: 'TIME_PRESSURED', vulnerabilityScore: 85 },
-  { id: 'driver_21', name: 'Noah', number: 21, persona: 'ROUTINE', vulnerabilityScore: 70 },
-  { id: 'driver_18', name: 'Lena', number: 18, persona: 'OVERLOADED', vulnerabilityScore: 82 },
-  { id: 'driver_5', name: 'Maya', number: 5, persona: 'TIME_PRESSURED', vulnerabilityScore: 79 },
-  { id: 'driver_9', name: 'Elliot', number: 9, persona: 'ROUTINE', vulnerabilityScore: 76 },
-  { id: 'driver_12', name: 'Samir', number: 12, persona: 'OVERLOADED', vulnerabilityScore: 84 },
-  { id: 'driver_2', name: 'Kira', number: 2, persona: 'TIME_PRESSURED', vulnerabilityScore: 88 },
-  { id: 'driver_16', name: 'Riley', number: 16, persona: 'ROUTINE', vulnerabilityScore: 72 },
-  { id: 'driver_4', name: 'Adrian', number: 4, persona: 'OVERLOADED', vulnerabilityScore: 81 }
+const { drivers: driverProfiles } = require('./drivers.json');
+
+const PERSONA_KEYWORDS = [
+  { key: 'pressure', persona: 'TIME_PRESSURED' },
+  { key: 'fatigue', persona: 'OVERLOADED' },
+  { key: 'emergency', persona: 'TIME_PRESSURED' },
+  { key: 'traffic', persona: 'TIME_PRESSURED' },
+  { key: 'verification', persona: 'ROUTINE' },
+  { key: 'gps', persona: 'ROUTINE' },
+  { key: 'inexperience', persona: 'OVERLOADED' },
+  { key: 'isolation', persona: 'TIME_PRESSURED' },
+  { key: 'automation', persona: 'ROUTINE' }
 ];
+
+function toDriverNumber(id, fallback) {
+  const digits = parseInt(String(id).replace(/\D/g, ''), 10);
+  if (Number.isFinite(digits)) {
+    return digits;
+  }
+  return fallback;
+}
+
+function derivePersona(driver) {
+  const vulnerabilities = driver.realistic_vulnerability_windows || {};
+  const joinedKeys = Object.keys(vulnerabilities)
+    .join(' ')
+    .toLowerCase();
+
+  const matchedKeyword = PERSONA_KEYWORDS.find(entry =>
+    joinedKeys.includes(entry.key)
+  );
+
+  if (matchedKeyword) {
+    return matchedKeyword.persona;
+  }
+
+  if (driver.experience_months < 24) {
+    return 'OVERLOADED';
+  }
+
+  if (driver.performance_metrics?.on_time_rate >= 96) {
+    return 'ROUTINE';
+  }
+
+  return 'TIME_PRESSURED';
+}
+
+function calculateVulnerabilityScore(driver) {
+  const onTimeRate = driver.performance_metrics?.on_time_rate ?? 92;
+  const experienceMonths = driver.experience_months ?? 24;
+  const vulnerabilityWindows = driver.realistic_vulnerability_windows
+    ? Object.keys(driver.realistic_vulnerability_windows).length
+    : 1;
+
+  const onTimePenalty = (100 - onTimeRate) * 0.6;
+  const experiencePenalty = experienceMonths < 24
+    ? 12
+    : experienceMonths < 48
+      ? 7
+      : experienceMonths < 72
+        ? 3
+        : 0;
+  const windowPenalty = Math.min(6, vulnerabilityWindows * 1.5);
+
+  const baseScore = 65 + onTimePenalty + experiencePenalty + windowPenalty;
+  return Math.round(Math.max(55, Math.min(95, baseScore)));
+}
+
+function buildDriverProfile(rawDriver, index) {
+  const number = toDriverNumber(rawDriver.id, index + 1);
+  const persona = derivePersona(rawDriver);
+  const vulnerabilityScore = calculateVulnerabilityScore(rawDriver);
+
+  return {
+    id: rawDriver.id,
+    name: rawDriver.name,
+    displayName: `${rawDriver.name} (#${number})`,
+    number,
+    persona,
+    vulnerabilityScore,
+    role: rawDriver.role,
+    shift: rawDriver.shift,
+    shiftHours: rawDriver.shift_hours,
+    experienceMonths: rawDriver.experience_months,
+    hireDate: rawDriver.hire_date,
+    certifications: rawDriver.certifications,
+    performanceMetrics: rawDriver.performance_metrics,
+    coverageAreas: rawDriver.coverage_areas,
+    equipment: rawDriver.equipment,
+    behavioralPatterns: rawDriver.behavioral_patterns,
+    vulnerabilityWindows: rawDriver.realistic_vulnerability_windows
+  };
+}
+
+const driverPool = driverProfiles.map(buildDriverProfile);
 
 // Track driver load (deliveryId -> driverId mapping)
 const driverLoads = new Map(); // driverId -> Set of active deliveryIds
@@ -43,12 +124,8 @@ function assignDriver() {
   const selected = availableDrivers[Math.floor(Math.random() * availableDrivers.length)];
   
   return {
-    id: selected.id,
-    name: selected.name,
-    displayName: `${selected.name} (#${selected.number})`,
-    number: selected.number,
-    persona: selected.persona,
-    vulnerabilityScore: selected.vulnerabilityScore
+    ...selected,
+    displayName: `${selected.name} (#${selected.number})`
   };
 }
 

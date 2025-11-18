@@ -1,0 +1,200 @@
+{
+    "dispatchers": [
+      {
+        "id": "DSP-2001",
+        "name": "Monica Rivera",
+        "role": "Senior Dispatch Coordinator",
+        "experience_months": 96,
+        "hire_date": "2017-01-10",
+        "shift": "morning",
+        "shift_hours": "06:00-14:00",
+        "certifications": {
+          "dea_background_check": true,
+          "pharmaceutical_logistics_certification": true,
+          "hipaa_certified": true,
+          "emergency_response_trained": true
+        },
+        "performance_metrics": {
+          "drivers_managed_per_shift": 5,
+          "avg_deliveries_coordinated_per_shift": 75,
+          "dispatch_accuracy_rate": 98.7,
+          "avg_response_time_seconds": 45,
+          "incident_resolution_rate": 96.2
+        },
+        "supervision_scope": {
+          "drivers_supervised": ["DRV-1001", "DRV-1002", "DRV-1006", "DRV-1008", "DRV-1010"],
+          "coverage_areas": ["Capitol Hill", "University District", "Central District", "Beacon Hill"],
+          "delivery_volume_per_shift": "70-80 deliveries",
+          "critical_deliveries_per_shift": "8-12 deliveries"
+        },
+        "equipment": {
+          "dispatch_system": "PharmaCourier Dispatch Pro",
+          "communication_tools": ["SMS", "Mobile app", "Radio", "Phone"],
+          "monitoring_dashboards": "Samsara Fleet Manager + Custom Dashboard",
+          "phone": "iPhone 14 Pro",
+          "workstation": "Dual monitor setup"
+        },
+        "behavioral_patterns": {
+          "management_style": "proactive_problem_prevention",
+          "communication_style": "clear_and_directive",
+          "stress_response": "systematic_prioritization",
+          "decision_making": "experience_based_judgment"
+        },
+        "realistic_vulnerability_windows": {
+          "morning_rush_coordination": {
+            "time_window": "07:00-09:00",
+            "vulnerability_type": "simultaneous_decision_overload",
+            "exploitation_difficulty": "medium",
+            "context": "Managing 5 drivers simultaneously during peak insulin delivery rush, making 40+ decisions per hour creates cognitive load that can miss spoofed communication patterns"
+          },
+          "dashboard_alert_fatigue": {
+            "time_window": "throughout_shift",
+            "vulnerability_type": "alert_desensitization",
+            "exploitation_difficulty": "low",
+            "context": "Dashboard generates 50-70 alerts per shift (90% false positives: fuel low, minor delays, temp fluctuations), real critical alerts can be buried in noise"
+          },
+          "pharmacy_callback_verification_spoofing": {
+            "trigger": "address_change_requests",
+            "vulnerability_type": "caller_id_trust",
+            "exploitation_difficulty": "medium",
+            "context": "When driver requests address verification, dispatcher calls pharmacy back - sophisticated caller ID spoofing can intercept, dispatcher believes they're talking to real pharmacy"
+          },
+          "shift_end_handoff_gaps": {
+            "time_window": "13:45-14:15",
+            "vulnerability_type": "incomplete_context_transfer",
+            "exploitation_difficulty": "low",
+            "context": "Transferring 8-12 in-progress critical deliveries to afternoon dispatcher creates 10-minute gap where neither dispatcher has full context"
+          }
+        }
+      },
+      {
+        "id": "DSP-2002",
+        "name": "Thomas Anderson",
+        "role": "Dispatch Coordinator",
+        "experience_months": 62,
+        "hire_date": "2020-09-15",
+        "shift": "afternoon",
+        "shift_hours": "14:00-22:00",
+        "certifications": {
+          "dea_background_check": true,
+          "pharmaceutical_logistics_certification": true,
+          "hipaa_certified": true,
+          "emergency_response_trained": true
+        },
+        "performance_metrics": {
+          "drivers_managed_per_shift": 6,
+          "avg_deliveries_coordinated_per_shift": 85,
+          "dispatch_accuracy_rate": 97.1,
+          "avg_response_time_seconds": 52,
+          "incident_resolution_rate": 94.8
+        },
+        "supervision_scope": {
+          "drivers_supervised": ["DRV-1003", "DRV-1004", "DRV-1005", "DRV-1011", "DRV-1014", "DRV-1007"],
+          "coverage_areas": ["Downtown", "Ballard", "West Seattle", "Queen Anne", "Fremont"],
+          "delivery_volume_per_shift": "80-90 deliveries",
+          "critical_deliveries_per_shift": "10-15 deliveries"
+        },
+        "equipment": {
+          "dispatch_system": "PharmaCourier Dispatch Pro",
+          "communication_tools": ["SMS", "Mobile app", "Radio", "Phone"],
+          "monitoring_dashboards": "Samsara Fleet Manager + Custom Dashboard",
+          "phone": "Samsung Galaxy S23",
+          "workstation": "Dual monitor setup"
+        },
+        "behavioral_patterns": {
+          "management_style": "data_driven_optimization",
+          "communication_style": "concise_instructions",
+          "stress_response": "analytical_problem_solving",
+          "decision_making": "metrics_based"
+        },
+        "realistic_vulnerability_windows": {
+          "afternoon_peak_volume": {
+            "time_window": "16:00-19:00",
+            "vulnerability_type": "throughput_pressure",
+            "exploitation_difficulty": "low",
+            "context": "Managing 6 drivers + 85 deliveries during post-work rush creates pressure to approve route changes quickly without deep verification to meet KPIs"
+          },
+          "rush_hour_rerouting_approvals": {
+            "time_window": "16:30-18:30",
+            "vulnerability_type": "emergency_approval_speed",
+            "exploitation_difficulty": "low",
+            "context": "I-5/SR-520 congestion requires frequent emergency rerouting approvals, dispatcher must decide in <60 seconds, may approve spoofed traffic reports to avoid delays"
+          },
+          "multi_driver_simultaneous_requests": {
+            "trigger": "3+_drivers_need_guidance_simultaneously",
+            "vulnerability_type": "divided_attention",
+            "exploitation_difficulty": "medium",
+            "context": "When 3+ drivers have issues simultaneously, dispatcher cycles through them rapidly, may miss subtle inconsistencies in one driver's request"
+          },
+          "on_time_delivery_kpi_pressure": {
+            "trigger": "approaching_shift_end_with_pending_critical",
+            "vulnerability_type": "deadline_override",
+            "exploitation_difficulty": "medium",
+            "context": "Management tracks on-time metrics, dispatcher pressured to approve shortcuts/fast-routes to avoid missing windows, may bypass verification"
+          }
+        }
+      },
+      {
+        "id": "DSP-2003",
+        "name": "Automated Dispatch System",
+        "role": "Night Automated Coordinator",
+        "experience_months": "N/A - System",
+        "shift": "night",
+        "shift_hours": "22:00-06:00",
+        "certifications": {
+          "system_type": "AI-assisted routing with human escalation protocol"
+        },
+        "performance_metrics": {
+          "drivers_managed_per_shift": 2,
+          "avg_deliveries_coordinated_per_shift": 12,
+          "dispatch_accuracy_rate": 91.3,
+          "avg_response_time_seconds": 15,
+          "human_escalation_rate": "8% of decisions"
+        },
+        "supervision_scope": {
+          "drivers_supervised": ["DRV-1009", "DRV-1015"],
+          "coverage_areas": ["All areas - emergency only"],
+          "delivery_volume_per_shift": "10-15 deliveries",
+          "critical_deliveries_per_shift": "5-8 deliveries"
+        },
+        "equipment": {
+          "dispatch_system": "PharmaCourier AI Dispatch (automated)",
+          "human_backup": "On-call supervisor (response time: 15-20 minutes)",
+          "monitoring_dashboards": "Samsara Fleet Manager (monitored remotely)",
+          "escalation_protocol": "Critical incidents trigger supervisor callback"
+        },
+        "behavioral_patterns": {
+          "management_style": "rule_based_algorithms",
+          "communication_style": "templated_automated_responses",
+          "stress_response": "escalation_to_human",
+          "decision_making": "predefined_decision_trees"
+        },
+        "realistic_vulnerability_windows": {
+          "overnight_minimal_human_oversight": {
+            "time_window": "22:00-06:00",
+            "vulnerability_type": "algorithm_exploitation",
+            "exploitation_difficulty": "low",
+            "context": "Automated system follows predefined rules, can't detect sophisticated social engineering, no human judgment for unusual scenarios"
+          },
+          "on_call_supervisor_delay": {
+            "trigger": "escalation_needed",
+            "vulnerability_type": "15_20_minute_response_gap",
+            "exploitation_difficulty": "low",
+            "context": "When automated system escalates, 15-20 minute delay before on-call supervisor responds creates window where driver has no guidance"
+          },
+          "rule_based_exploitation": {
+            "trigger": "input_matches_expected_pattern",
+            "vulnerability_type": "logic_bypass",
+            "exploitation_difficulty": "medium",
+            "context": "System approves requests that match expected format even if content is malicious - can't recognize context-based red flags"
+          },
+          "emergency_protocol_override": {
+            "trigger": "critical_delivery_marked_urgent",
+            "vulnerability_type": "automated_fast_track",
+            "exploitation_difficulty": "low",
+            "context": "System auto-approves certain 'emergency' requests without human verification to ensure critical deliveries succeed, can be exploited"
+          }
+        }
+      }
+    ]
+  }

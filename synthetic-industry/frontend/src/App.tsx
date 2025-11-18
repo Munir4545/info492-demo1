@@ -7,8 +7,9 @@ import { StreamMap } from './components/StreamMap';
 import { ApiDataPanel } from './components/ApiDataPanel';
 import { Delivery, SimulationStats, StreamEvent, RouteManifest, Coordinates } from './types';
 
-const API_BASE_URL = (import.meta.env.VITE_SYNTHETIC_API || '').replace(/\/$/, '');
-const DISPLAY_BACKEND_URL = API_BASE_URL || 'http://localhost:8007';
+const DEFAULT_BACKEND = 'http://localhost:8007';
+const API_BASE_URL = (import.meta.env.VITE_SYNTHETIC_API || DEFAULT_BACKEND).replace(/\/$/, '');
+const DISPLAY_BACKEND_URL = API_BASE_URL || DEFAULT_BACKEND;
 
 const initialStats: SimulationStats = {
   running: false,
@@ -61,6 +62,22 @@ interface AnimationState {
   duration: number;
 }
 
+interface ApiAlertEvent {
+  id: string;
+  severity: string;
+  source?: string;
+  message: string;
+  createdAt: string;
+  metadata?: unknown;
+}
+
+interface GpsSpoofState {
+  location: Coordinates;
+  origin: Coordinates | null;
+  active: boolean;
+  message?: string;
+}
+
 function buildApiUrl(path: string) {
   if (!API_BASE_URL) {
     return path;
@@ -82,6 +99,8 @@ function App() {
   const lastFrameRef = useRef<number>(0);
   const routeManifestRef = useRef<RouteManifest | null>(null);
   const [events, setEvents] = useState<StreamEvent[]>([]);
+  const [apiAlerts, setApiAlerts] = useState<ApiAlertEvent[]>([]);
+  const [gpsSpoof, setGpsSpoof] = useState<GpsSpoofState | null>(null);
   const [isStarting, setIsStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
@@ -345,6 +364,8 @@ function App() {
       setRouteManifest(null);
       setDeliveries([]);
       setDriverLocationInstant(null);
+      setGpsSpoof(null);
+      setApiAlerts([]);
     };
 
     subscribe('connected', handleConnected);
@@ -380,6 +401,8 @@ function App() {
       lastServerTimestampRef.current = null;
       driverLocationRef.current = null;
       setDriverLocationState(null);
+      setGpsSpoof(null);
+      setApiAlerts([]);
     };
   }, [streamClient, animateDriverTo, setDriverLocationInstant, stopDriverAnimation]);
   
@@ -404,6 +427,30 @@ function App() {
       }
       return newEvents;
     });
+
+    if (normalizedEvent.type === 'api_alert' && normalizedEvent.data) {
+      setApiAlerts(prev => {
+        const next = [...prev, normalizedEvent.data as ApiAlertEvent];
+        return next.length > 6 ? next.slice(next.length - 6) : next;
+      });
+    }
+
+    if (normalizedEvent.type === 'gps_spoof_requested' && normalizedEvent.data?.location) {
+      setGpsSpoof({
+        location: normalizedEvent.data.location,
+        origin: driverLocationRef.current,
+        active: false,
+        message: normalizedEvent.data.message
+      });
+    }
+
+    if (normalizedEvent.type === 'gps_spoof_applied') {
+      setGpsSpoof(prev => (prev ? { ...prev, active: true } : prev));
+    }
+
+    if (normalizedEvent.type === 'gps_spoof_resolved') {
+      setGpsSpoof(prev => (prev ? { ...prev, active: false } : prev));
+    }
   };
   
   const fetchManifest = async () => {
@@ -557,7 +604,8 @@ function App() {
               driverLocation={driverLocation}
               startLocation={routeManifest?.startLocation?.coords || null}
               routeName={routeManifest?.routeName}
-              currentDeliveryId={stats.currentDelivery?.id || null}
+            currentDeliveryId={stats.currentDelivery?.id || null}
+            gpsSpoof={gpsSpoof}
             />
           </div>
         </div>
@@ -571,6 +619,7 @@ function App() {
             manifest={routeManifest}
             driverLocation={driverLocation}
             latestEvent={events.length > 0 ? events[events.length - 1] : null}
+            apiAlerts={apiAlerts}
           />
         </div>
       </main>

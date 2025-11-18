@@ -63,6 +63,28 @@ Then open your browser to:
 
 > Passkeys only work when the UI is served from `http://localhost` or `https://` origins (opening the HTML file directly from disk will not work).
 
+### 4. Kick off the autonomous attack loop
+
+With both backends running (pharma attack simulator + Synthetic Industry on port 8007), start the 24‑hour autonomous cycle:
+
+```bash
+cd backend
+npm run start_attack
+```
+
+The command calls `POST /api/autonomous/start`, which:
+
+- Requests a fresh Synthetic Industry route (`/api/synthetic/start`, waits for `/api/synthetic/manifest`)
+- Builds an attack config from that manifest and runs the full phishing → GPS → API stack
+- Streams every step to the backend console (`[AUTONOMY] ...` logs plus the usual agent messages)
+- Stops the synthetic simulation when the route finishes, waits a few seconds, and repeats with the next route
+
+To stop the loop manually:
+
+```bash
+curl -X POST http://localhost:3001/api/autonomous/stop
+```
+
 ## 🎯 Usage
 
 1. **Register or Sign In with a Passkey**: Use WebAuthn (supported on localhost in modern browsers).
@@ -80,12 +102,21 @@ Edit `config.json` to customize:
 - **Auth** (`auth` block): RP name/ID, expected origin, session TTL for passkey flows
 - **LLM Providers** (`llmProviders` block): Model IDs, API endpoints, timeout values for MiniMax M2 and GLM 4.5 integrations
 
+### Environment Variables
+
+| Variable | Purpose | Default |
+| --- | --- | --- |
+| `OPENROUTER_API_KEY` | Enables live LLM scoring | _required for live mode_ |
+| `OPENROUTER_SITE_URL` / `OPENROUTER_APP_NAME` | Optional OpenRouter metadata | _empty_ |
+| `SYNTHETIC_API_BASE` | Base URL for Synthetic Industry stats feed | `http://localhost:8007` |
+| `SIM_MINUTE_MS` | Real milliseconds that represent one simulation minute | `1000` |
+| `SIM_TOTAL_MINUTES` | Length of a full autonomous run (minutes) | `1440` |
+
 ## 🔑 Passkeys & Sessions
 
-- Runs entirely over WebAuthn passkeys (works on `http://localhost` or HTTPS origins).
-- Successful registration/login returns a session token stored in local storage and automatically attached to API calls.
-- Use the logout button or clear local storage to end the session.
-- Update `config.auth.expectedOrigin` if you host the frontend on a different port or domain.
+- Authentication is currently disabled for local testing – all API routes and Socket.IO connections are open.
+- The legacy WebAuthn endpoints remain in code but no longer gate access; you can hit the backend directly without a token.
+- If you re-enable auth later, update `config.auth.expectedOrigin` when hosting the frontend on a different origin.
 
 ## 🤖 LLM Provider Setup
 
@@ -103,6 +134,7 @@ Edit `config.json` to customize:
 - **4 AI Agents**: Orchestrator, Phishing, GPS, API Flood
 - **Real-time Updates**: Socket.IO for live dashboard updates
 - **Database Persistence**: SQLite stores all attacks and logs
+- **Autonomous Decision Engine**: Minute-by-minute evaluation picks optimal vectors and queues HIL approvals with reasoning
 - **Matrix UI**: Terminal-style interface with Matrix rain background
 - **Export Functionality**: Download attack results as JSON
 
@@ -119,6 +151,16 @@ Edit `config.json` to customize:
 - Auto-suggestions from the LLM are queued instead of executed immediately.
 - Analysts receive real-time alerts and can approve or reject each action.
 - Approvals are audited and broadcast to all connected dashboards.
+
+## 🧠 Autonomous Decision Engine
+
+- Evaluates live metrics every simulated minute (default 1 real second) to see if the 30% compromise objective is on track.
+- Considers compromise rate, detection risk, cascade opportunities (dispatcher load), and remaining time before queuing actions.
+- Queued actions flow through the existing human-in-the-loop queue with detailed reasoning and risk scores.
+- Every decision is written to `decision_event_logs`, while a full situational snapshot is stored every 30 simulation minutes in `decision_state_snapshots`.
+- New API routes expose the history:
+  - `GET /api/attacks/:id/events`
+  - `GET /api/attacks/:id/snapshots`
 
 ## 🛠️ API Endpoints
 
@@ -138,6 +180,8 @@ All non-auth routes require an `Authorization: Bearer <sessionToken>` header obt
 - `POST /api/attacks/:id/start` - Start attack
 - `GET /api/attacks/:id` - Get attack status and logs
 - `GET /api/attacks/:id/suggestions` - Latest LLM suggestions/state
+- `GET /api/attacks/:id/events` - Autonomous decision & impact event log
+- `GET /api/attacks/:id/snapshots` - 30-minute state snapshots for analytics
 
 ### Human-in-the-Loop Endpoints
 - `GET /api/hil/pending` - List pending approvals

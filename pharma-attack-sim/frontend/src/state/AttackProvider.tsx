@@ -1,4 +1,14 @@
-import { createContext, useContext, useEffect, useMemo, useReducer, useRef, ReactNode } from 'react';
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  ReactNode,
+  useState,
+  useCallback
+} from 'react';
 import {
   AttackControlState,
   AttackSimulationState,
@@ -19,6 +29,15 @@ import {
   initialTranscript,
 } from '../data/synthetic';
 import { attackScenarios, calculateAttackOutcome, DecisionRecord } from '../data/syntheticAttackData';
+import api from '../lib/api';
+import {
+  useAttackUpdates,
+  AgentMessage,
+  StepUpdate,
+  LLMLog,
+  DecisionEvaluationEvent,
+  DecisionQueueEvent
+} from '../hooks/useAttackUpdates';
 
 const TICK_INTERVAL_MS = 1000;
 const TIME_STEP_MINUTES = 1;
@@ -34,6 +53,63 @@ const BASE_TRAJECTORY = [
 ];
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
+
+const safelyParseJson = (value: unknown) => {
+  if (typeof value !== 'string') {
+    return value ?? null;
+  }
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+};
+
+type BackendStatus = 'idle' | 'starting' | 'running' | 'paused' | 'completed' | 'failed';
+
+export interface BackendEventLog {
+  id: number;
+  attack_id: number;
+  event_type: string | null;
+  agent: string | null;
+  vector: string | null;
+  description: string | null;
+  outcome: string | null;
+  detection_risk: number | null;
+  compromise_rate: number | null;
+  sim_minute: number | null;
+  impact?: Record<string, unknown> | null;
+  metadata?: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface BackendSnapshot {
+  id: number;
+  attack_id: number;
+  snapshot_time: string;
+  sim_minute: number;
+  compromised_deliveries: number;
+  total_deliveries: number;
+  compromise_rate: number;
+  detection_alerts: number;
+  average_patient_health: number;
+  active_vectors: string[];
+  metadata?: Record<string, unknown> | null;
+}
+
+export interface BackendStreamState {
+  attackId: number | null;
+  status: BackendStatus;
+  connected: boolean;
+  messages: AgentMessage[];
+  stepUpdates: StepUpdate[];
+  llmLogs: LLMLog[];
+  decisionEvaluations: DecisionEvaluationEvent[];
+  decisionQueue: DecisionQueueEvent[];
+  events: BackendEventLog[];
+  snapshots: BackendSnapshot[];
+  refreshAnalytics: () => Promise<boolean>;
+}
 
 const getTrajectoryPoint = (minute: number) => {
   if (minute <= BASE_TRAJECTORY[0].minute) {
@@ -533,6 +609,7 @@ interface AttackContextValue extends AttackState {
   resumeAttack: () => boolean;
   setLiveIntensity: (level: 'low' | 'medium' | 'high') => void;
   triggerManualCascade: () => boolean;
+  backendStream: BackendStreamState;
 }
 
 const AttackContext = createContext<AttackContextValue | undefined>(undefined);
@@ -543,6 +620,21 @@ export const AttackProvider = ({ children }: { children: ReactNode }) => {
   const previousPhaseRef = useRef(state.simulation.phase);
   const previousCompromiseRef = useRef(state.simulation.compromisePercentage);
   const triggeredEventsRef = useRef<Set<string>>(new Set());
+  const [backendAttackId, setBackendAttackId] = useState<number | null>(null);
+  const [backendStatus, setBackendStatus] = useState<BackendStatus>('idle');
+  const [backendEvents, setBackendEvents] = useState<BackendEventLog[]>([]);
+  const [backendSnapshots, setBackendSnapshots] = useState<BackendSnapshot[]>([]);
+
+  const {
+    messages: backendMessages,
+    stepUpdates: backendStepUpdates,
+    attackCompleted: backendAttackCompleted,
+    attackPaused: backendAttackPaused,
+    llmLogs: backendLLMLogs,
+    isConnected: backendConnected,
+    decisionEvaluations: backendDecisionEvaluations,
+    decisionQueue: backendDecisionQueue
+  } = useAttackUpdates(backendAttackId);
 
   const clearTicker = () => {
     if (tickRef.current) {
@@ -550,6 +642,113 @@ export const AttackProvider = ({ children }: { children: ReactNode }) => {
       tickRef.current = null;
     }
   };
+
+  const refreshBackendAnalytics = useCallback(async () => {
+    if (!backendAttackId) return false;
+    try {
+      const [eventsRes, snapshotsRes] = await Promise.all([
+        api.get(`/attacks/${backendAttackId}/events`),
+        api.get(`/attacks/${backendAttackId}/snapshots`)
+      ]);
+
+      const normalizedEvents: BackendEventLog[] = (eventsRes.data?.events || []).map((event: BackendEventLog) => ({
+        ...event,
+        impact: safelyParseJson(event.impact) as BackendEventLog['impact'],
+        metadata: safelyParseJson(event.metadata) as BackendEventLog['metadata']
+      }));
+
+      const normalizedSnapshots: BackendSnapshot[] = (snapshotsRes.data?.snapshots || []).map((snapshot: BackendSnapshot) => ({
+        ...snapshot,
+        active_vectors: Array.isArray(snapshot.active_vectors)
+          ? snapshot.active_vectors
+          : (safelyParseJson(snapshot.active_vectors) as string[]) || [],
+        metadata: safelyParseJson(snapshot.metadata) as BackendSnapshot['metadata']
+      }));
+
+      setBackendEvents(normalizedEvents);
+      setBackendSnapshots(normalizedSnapshots);
+      return true;
+    } catch (error) {
+      console.error('Failed to refresh backend analytics', error);
+      return false;
+    }
+  }, [backendAttackId]);
+
+  useEffect(() => {
+    if (!backendAttackId) {
+      setBackendEvents([]);
+      setBackendSnapshots([]);
+      setBackendStatus('idle');
+      return;
+    }
+    refreshBackendAnalytics();
+    const interval = setInterval(() => {
+      refreshBackendAnalytics();
+    }, 6000);
+    return () => clearInterval(interval);
+  }, [backendAttackId, refreshBackendAnalytics]);
+
+  useEffect(() => {
+    if (backendAttackCompleted) {
+      setBackendStatus('completed');
+      refreshBackendAnalytics();
+    }
+  }, [backendAttackCompleted, refreshBackendAnalytics]);
+
+  useEffect(() => {
+    if (backendAttackPaused) {
+      setBackendStatus('paused');
+    }
+  }, [backendAttackPaused]);
+
+  const launchBackendRun = useCallback(
+    async (driver: DriverProfile | undefined, selectedVectorsData: AttackVector[], intensity: 'low' | 'medium' | 'high') => {
+      try {
+        setBackendStatus('starting');
+        const averageSuccessRate =
+          selectedVectorsData.length > 0
+            ? selectedVectorsData.reduce((sum, vector) => sum + vector.baseSuccessRate, 0) /
+              (selectedVectorsData.length * 100)
+            : 0.3;
+
+        const backendConfig = {
+          baseSuccessRate: Math.min(0.95, Math.max(0.2, averageSuccessRate || 0.3)),
+          targetDriver: driver?.name ?? 'Unknown Driver',
+          targetTier: driver?.role === 'DISPATCHER' ? 'tier3' : 'tier2',
+          intensity,
+          vectorPlan: selectedVectorsData.map((vector) => vector.id),
+          persona: driver?.persona ?? null,
+          day: 1
+        };
+
+        const createResponse = await api.post('/attacks/create', { config: backendConfig });
+        const newAttackId = createResponse.data?.attackId;
+        if (!newAttackId) {
+          throw new Error('Attack ID missing from create response');
+        }
+
+        setBackendAttackId(newAttackId);
+        setBackendEvents([]);
+        setBackendSnapshots([]);
+
+        await api.post(`/attacks/${newAttackId}/start`);
+        setBackendStatus('running');
+        refreshBackendAnalytics();
+      } catch (error) {
+        console.error('Failed to launch backend attack', error);
+        setBackendStatus('failed');
+        dispatch({
+          type: 'appendTranscript',
+          payload: {
+            timestamp: new Date().toISOString(),
+            agent: 'SYSTEM',
+            content: 'Backend attack launch failed. Check backend logs for details.'
+          }
+        });
+      }
+    },
+    [dispatch, refreshBackendAnalytics]
+  );
 
   const startAttack = () => {
     if (!state.control.selectedDriver || state.control.selectedVectors.length === 0) {
@@ -577,6 +776,8 @@ export const AttackProvider = ({ children }: { children: ReactNode }) => {
     tickRef.current = setInterval(() => {
       dispatch({ type: 'tick' });
     }, TICK_INTERVAL_MS);
+
+    void launchBackendRun(driver, selectedVectorsData, state.control.intensity);
 
     return true;
   };
@@ -697,6 +898,35 @@ export const AttackProvider = ({ children }: { children: ReactNode }) => {
     triggeredEventsRef.current.add(historyKey);
   }, [state.simulation, state.deliveries, state.transcript, state.finalOutcome]);
 
+  const backendStream: BackendStreamState = useMemo(
+    () => ({
+      attackId: backendAttackId,
+      status: backendStatus,
+      connected: backendConnected,
+      messages: backendMessages,
+      stepUpdates: backendStepUpdates,
+      llmLogs: backendLLMLogs,
+      decisionEvaluations: backendDecisionEvaluations,
+      decisionQueue: backendDecisionQueue,
+      events: backendEvents,
+      snapshots: backendSnapshots,
+      refreshAnalytics: refreshBackendAnalytics
+    }),
+    [
+      backendAttackId,
+      backendStatus,
+      backendConnected,
+      backendMessages,
+      backendStepUpdates,
+      backendLLMLogs,
+      backendDecisionEvaluations,
+      backendDecisionQueue,
+      backendEvents,
+      backendSnapshots,
+      refreshBackendAnalytics
+    ]
+  );
+
   const recordDecision = (decision: DecisionRecord) => {
     const transcriptMessage = decision.success
       ? decision.selectedOption.outcome.success || 'Decision succeeded.'
@@ -814,8 +1044,9 @@ export const AttackProvider = ({ children }: { children: ReactNode }) => {
       resumeAttack,
       setLiveIntensity,
       triggerManualCascade,
+      backendStream
     }),
-    [state]
+    [state, backendStream]
   );
 
   return <AttackContext.Provider value={value}>{children}</AttackContext.Provider>;

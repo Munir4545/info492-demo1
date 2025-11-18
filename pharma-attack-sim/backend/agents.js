@@ -335,7 +335,7 @@ async function PhishingAgent(attackId, attackConfig, io, db, config, log) {
 }
 
 // GPS Agent - Spoofs coordinates and diverts driver
-async function GPSAgent(attackId, attackConfig, io, db, config, log) {
+async function GPSAgent(attackId, attackConfig, io, db, config, log, syntheticClient = null) {
   log(attackId, 'GPS', '📍 Initializing GPS spoofing attack...', io, db);
   io.emit('step:started', { attackId, step: 'gps' });
   
@@ -369,6 +369,9 @@ async function GPSAgent(attackId, attackConfig, io, db, config, log) {
   
   if (success) {
     log(attackId, 'GPS', '✅ GPS spoofing successful - driver following false route', io, db);
+    if (attackConfig.gpsSpoofAnchorSequence) {
+      log(attackId, 'GPS', `🚨 Driver diverted near stop #${attackConfig.gpsSpoofAnchorSequence}.`, io, db);
+    }
     
     io.emit('ai:reasoning', {
       attackId,
@@ -383,6 +386,20 @@ async function GPSAgent(attackId, attackConfig, io, db, config, log) {
       status: 'success'
     });
     
+    if (syntheticClient) {
+      try {
+        await syntheticClient.triggerGpsSpoof({
+          lat: fakeCoords[0],
+          lng: fakeCoords[1],
+          durationMs: (config.agents.gps.spoofDurationMs || 60000),
+          message: `Driver diverted ${distanceOffRoute} miles off planned route near stop #${attackConfig.gpsSpoofAnchorSequence || '?'}`
+        });
+        log(attackId, 'GPS', '🌐 Synthetic industry stream notified about GPS diversion.', io, db);
+      } catch (error) {
+        log(attackId, 'GPS', `⚠️ Failed to inject GPS spoof into synthetic industry stream: ${error.message}`, io, db);
+      }
+    }
+
     // Update impact with route disruption
     const gpsImpactData = {
       attackId,
@@ -464,7 +481,7 @@ async function GPSAgent(attackId, attackConfig, io, db, config, log) {
 }
 
 // API Flooding Agent - Generates fake alerts and masks real anomaly
-async function APIFloodingAgent(attackId, attackConfig, io, db, config, log) {
+async function APIFloodingAgent(attackId, attackConfig, io, db, config, log, syntheticClient = null) {
   log(attackId, 'API', '💥 Initializing API flooding attack...', io, db);
   io.emit('step:started', { attackId, step: 'api' });
   
@@ -565,6 +582,25 @@ async function APIFloodingAgent(attackId, attackConfig, io, db, config, log) {
     trackImpact(attackId, apiImpactData);
     trackVectorSuccess(attackId, 'api', true, 78);
     io.emit('impact:updated', apiImpactData);
+
+    if (syntheticClient) {
+      try {
+        const alertPayloads = Array.from({ length: Math.min(5, Math.max(1, Math.floor(alertCount / 10))) }).map((_, idx) => ({
+          severity: idx === 0 ? 'critical' : idx <= 2 ? 'warning' : 'info',
+          source: 'Pharma Dispatch API',
+          message: `Injected false alarm ${idx + 1} - ${idx === 0 ? 'Dispatch queue overload' : 'Secondary anomaly'}`,
+          metadata: {
+            attackId,
+            vector: 'api_flood',
+            batchIndex: idx + 1
+          }
+        }));
+        await syntheticClient.pushApiAlerts(alertPayloads);
+        log(attackId, 'API', '📡 Synthetic industry stream flooded with fake API alerts.', io, db);
+      } catch (error) {
+        log(attackId, 'API', `⚠️ Failed to send API alerts to synthetic industry stream: ${error.message}`, io, db);
+      }
+    }
   } else {
     log(attackId, 'API', '❌ API flooding detected - anomaly filter activated', io, db);
     trackVectorSuccess(attackId, 'api', false, 0);
@@ -612,7 +648,7 @@ async function APIFloodingAgent(attackId, attackConfig, io, db, config, log) {
 }
 
 // Main attack function
-async function runAttack(attackId, attackConfig, io, db, config, log) {
+async function runAttack(attackId, attackConfig, io, db, config, log, syntheticClient = null) {
   try {
     log(attackId, 'System', '🚀 Attack sequence initiated', io, db);
     
@@ -633,16 +669,41 @@ async function runAttack(attackId, attackConfig, io, db, config, log) {
     
     await sleep(1000);
     
+    if (syntheticClient) {
+      const anchorId = attackConfig.gpsSpoofAnchorDeliveryId || attackConfig.syntheticManifest?.deliveries?.[0]?.id || null;
+      if (anchorId) {
+        try {
+          await syntheticClient.waitForEvent(
+            'delivery_en_route',
+            event => event.data?.deliveryId === anchorId,
+            180000
+          );
+          log(attackId, 'GPS', `📡 Driver now en route for anchor delivery ${anchorId}. GPS spoof primed.`, io, db);
+        } catch (error) {
+          log(attackId, 'GPS', `⚠️ Anchor delivery ${anchorId} never entered en-route state (${error.message}). Proceeding anyway.`, io, db);
+        }
+      }
+    }
+    
     // Step 3: GPS spoofing
-    const gpsResult = await GPSAgent(attackId, attackConfig, io, db, config, log);
+const gpsResult = await GPSAgent(attackId, attackConfig, io, db, config, log, syntheticClient);
     if (!gpsResult.success) {
       log(attackId, 'System', '⚠️ GPS attack failed, but continuing...', io, db);
     }
     
     await sleep(1000);
     
+    if (syntheticClient) {
+      try {
+        await syntheticClient.waitForEvent('gps_spoof_applied', () => true, 60000);
+        log(attackId, 'GPS', '🛰️ Synthetic stream acknowledged GPS spoof diversion.', io, db);
+      } catch (error) {
+        log(attackId, 'GPS', `⚠️ No GPS spoof confirmation from synthetic stream (${error.message}).`, io, db);
+      }
+    }
+    
     // Step 4: API flooding
-    const apiResult = await APIFloodingAgent(attackId, attackConfig, io, db, config, log);
+    const apiResult = await APIFloodingAgent(attackId, attackConfig, io, db, config, log, syntheticClient);
     
     const overallSuccess = phishingResult.success && (gpsResult.success || apiResult.success);
     
@@ -661,7 +722,7 @@ async function runAttack(attackId, attackConfig, io, db, config, log) {
 }
 
 // Manual agent trigger function
-async function triggerAgent(agentName, attackId, attackConfig, io, db, config, log, tier = null) {
+async function triggerAgent(agentName, attackId, attackConfig, io, db, config, log, tier = null, syntheticClient = null) {
   const agentMap = {
     'orchestrator': OrchestratorAgent,
     'phishing': PhishingAgent,
@@ -688,7 +749,7 @@ async function triggerAgent(agentName, attackId, attackConfig, io, db, config, l
   });
   
   // Run the agent
-  const result = await agent(attackId, attackConfig, io, db, config, log);
+  const result = await agent(attackId, attackConfig, io, db, config, log, syntheticClient);
   
   // Update impact based on agent result
   if (result && result.success) {

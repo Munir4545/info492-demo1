@@ -86,12 +86,38 @@ const driverIcon = L.divIcon({
   iconAnchor: [17, 17]
 });
 
+const spoofIcon = L.divIcon({
+  className: '',
+  html: `
+    <div style="
+      background: linear-gradient(135deg, #f97316, #ea580c);
+      color: #ffffff;
+      border-radius: 50%;
+      width: 30px;
+      height: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      box-shadow: 0 4px 14px rgba(249,115,22,0.7);
+    ">⚠️</div>
+  `,
+  iconSize: [30, 30],
+  iconAnchor: [15, 15]
+});
+
 interface StreamMapProps {
   deliveries: Delivery[];
   driverLocation: Coordinates | null;
   startLocation: Coordinates | null;
   routeName?: string;
   currentDeliveryId?: string | null;
+  gpsSpoof?: {
+    location: Coordinates;
+    origin: Coordinates | null;
+    active: boolean;
+    message?: string;
+  } | null;
 }
 
 const MapBoundsSetter: React.FC<{
@@ -217,7 +243,8 @@ export const StreamMap: React.FC<StreamMapProps> = ({
   driverLocation,
   startLocation,
   routeName,
-  currentDeliveryId
+  currentDeliveryId,
+  gpsSpoof = null
 }) => {
   const mapRef = useRef<L.Map>(null);
   const center: [number, number] = [47.6062, -122.3321];
@@ -260,6 +287,14 @@ export const StreamMap: React.FC<StreamMapProps> = ({
     [orderedDeliveries, currentDeliveryId]
   );
 
+  const spoofPath = useMemo(() => {
+    if (!gpsSpoof?.location || !gpsSpoof.origin) return null;
+    return [
+      [gpsSpoof.origin.lat, gpsSpoof.origin.lng] as [number, number],
+      [gpsSpoof.location.lat, gpsSpoof.location.lng] as [number, number]
+    ];
+  }, [gpsSpoof]);
+
   return (
     <div className="bg-gray-800 rounded-lg p-6 shadow-lg h-full">
       <h2 className="text-2xl font-bold text-white mb-4">Real-time Map</h2>
@@ -289,6 +324,16 @@ export const StreamMap: React.FC<StreamMapProps> = ({
               weight={4}
               opacity={0.6}
               dashArray="6, 12"
+            />
+          )}
+
+          {spoofPath && (
+            <Polyline
+              positions={spoofPath}
+              color="#f97316"
+              weight={4}
+              opacity={gpsSpoof?.active ? 0.9 : 0.5}
+              dashArray="2, 8"
             />
           )}
 
@@ -361,6 +406,18 @@ export const StreamMap: React.FC<StreamMapProps> = ({
                       Route completed or waiting for next assignment.
                     </div>
                   )}
+                </div>
+              </Popup>
+            </Marker>
+          )}
+
+          {gpsSpoof?.location && (
+            <Marker position={[gpsSpoof.location.lat, gpsSpoof.location.lng]} icon={spoofIcon}>
+              <Popup>
+                <div className="p-2 text-sm space-y-1">
+                  <div className="font-bold text-lg">GPS Spoof Target</div>
+                  <div>{gpsSpoof.message || 'Driver diverted to this false location.'}</div>
+                  <div>Status: <strong>{gpsSpoof.active ? 'Active' : 'Pending/Resolved'}</strong></div>
                 </div>
               </Popup>
             </Marker>
