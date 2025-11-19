@@ -15,7 +15,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   onStart,
   onStop,
   onPause,
-  onResume,
+  onResume: _onResume,
   isStarting = false
 }) => {
   const formatElapsedTime = (seconds: number) => {

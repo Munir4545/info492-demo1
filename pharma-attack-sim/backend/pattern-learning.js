@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const AttackLogModel = require('./models/AttackLog');
 
 /**
  * Pattern Learning System
@@ -7,44 +8,15 @@ const mongoose = require('mongoose');
 class PatternLearningSystem {
   constructor(mongodbUri) {
     this.mongodbUri = mongodbUri;
-    this.attackLogSchema = null;
-    this.AttackLog = null;
+    this.AttackLog = AttackLogModel;
     this.connected = false;
   }
 
   async connect() {
     if (this.connected) return;
 
-    // Define schema if not already defined
-    if (!this.attackLogSchema) {
-      this.attackLogSchema = new mongoose.Schema({
-        attackId: { type: String, required: true, index: true },
-        timestamp: { type: Date, default: Date.now, index: true },
-        targetDriver: String,
-        targetRole: String,
-        vectors: [String],
-        success: Boolean,
-        detected: Boolean,
-        compromiseRate: Number,
-        detectionRisk: Number,
-        campaignDay: Number,
-        decisionEvents: [{
-          triggerId: String,
-          time: Number,
-          selectedOption: String,
-          success: Boolean
-        }],
-        finalMetrics: {
-          compromisedDeliveries: Number,
-          affectedPatients: Number,
-          financialImpact: Number
-        }
-      }, { collection: 'attack_logs' });
-    }
-
     try {
       await mongoose.connect(this.mongodbUri);
-      this.AttackLog = mongoose.model('AttackLog', this.attackLogSchema);
       this.connected = true;
       console.log('✅ Pattern Learning System connected to MongoDB');
     } catch (error) {

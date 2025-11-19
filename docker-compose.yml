@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   pharma-attack-backend:
     build:
@@ -8,9 +6,10 @@ services:
     container_name: pharma-attack-backend
     ports:
       - "3001:3001"
+    env_file:
+      - ./pharma-attack-sim/.env
     environment:
       - PORT=3001
-      - MONGODB_PASSWORD=${MONGODB_PASSWORD}
       - NODE_ENV=production
     restart: unless-stopped
     healthcheck:
@@ -20,6 +19,7 @@ services:
       retries: 3
       start_period: 10s
     volumes:
+      - ./pharma-attack-sim/config.json:/config.json:ro
       - pharma-data:/app/data
     networks:
       - pharma-network

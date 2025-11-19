@@ -1,12 +1,13 @@
-FROM node:18-alpine
+FROM node:22-alpine
 
 WORKDIR /app
 
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci --only=production
+# Install build tools for native modules and dependencies
+RUN apk add --no-cache python3 make g++ build-base \
+  && npm ci --only=production
 
 # Copy application files
 COPY . .
