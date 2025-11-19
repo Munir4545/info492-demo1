@@ -76,7 +76,7 @@ class SyntheticClient extends EventEmitter {
     }
   }
 
-  waitForEvent(type, predicate = () => true, timeoutMs = 60000) {
+  waitForEvent(type, predicate = () => true, timeoutMs = 300000) {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.waiters = this.waiters.filter(waiter => waiter.timer !== timer);

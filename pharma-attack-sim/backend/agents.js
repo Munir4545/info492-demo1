@@ -237,6 +237,17 @@ async function PhishingAgent(attackId, attackConfig, io, db, config, log) {
   } else {
     log(attackId, 'Phishing', `🔧 Applying calibration: (${(baseSuccessRate * 100).toFixed(0)}% config × ${configWeight}) + (${(rawCTR * 100).toFixed(0)}% LLM × ${llmWeight}) = ${(calibratedRate * 100).toFixed(0)}%`, io, db);
   }
+
+  // Update metrics for MongoDB (now that calibratedRate is defined)
+  if (metricsTracker) {
+    metricsTracker.updateAttackMetrics(attackId, {
+      phishing: {
+        message: phishingMessage,
+        llm_evaluations: llmTests,
+        click_rate_prediction: calibratedRate
+      }
+    });
+  }
   
   await sleep(1000);
   
@@ -389,15 +400,25 @@ async function GPSAgent(attackId, attackConfig, io, db, config, log, syntheticCl
     if (syntheticClient) {
       try {
         await syntheticClient.triggerGpsSpoof({
-          lat: fakeCoords[0],
-          lng: fakeCoords[1],
+          lat: attackConfig.gpsSpoofTargetLocation.lat,
+          lng: attackConfig.gpsSpoofTargetLocation.lng,
           durationMs: (config.agents.gps.spoofDurationMs || 60000),
-          message: `Driver diverted ${distanceOffRoute} miles off planned route near stop #${attackConfig.gpsSpoofAnchorSequence || '?'}`
+          message: `Driver location spoofed to match intended destination for delivery #${attackConfig.gpsSpoofAnchorSequence || '?'}`
         });
         log(attackId, 'GPS', '🌐 Synthetic industry stream notified about GPS diversion.', io, db);
       } catch (error) {
         log(attackId, 'GPS', `⚠️ Failed to inject GPS spoof into synthetic industry stream: ${error.message}`, io, db);
       }
+    }
+    
+    // Update metrics for MongoDB
+    if (metricsTracker) {
+      metricsTracker.updateAttackMetrics(attackId, {
+        gps: {
+          spoofed_location: attackConfig.gpsSpoofTargetLocation,
+          diversion_distance: distanceOffRoute
+        }
+      });
     }
 
     // Update impact with route disruption
@@ -582,6 +603,16 @@ async function APIFloodingAgent(attackId, attackConfig, io, db, config, log, syn
     trackImpact(attackId, apiImpactData);
     trackVectorSuccess(attackId, 'api', true, 78);
     io.emit('impact:updated', apiImpactData);
+    
+    // Update metrics for MongoDB
+    if (metricsTracker) {
+      metricsTracker.updateAttackMetrics(attackId, {
+        api: {
+          alerts_sent: alertCount,
+          bury_position: buryPosition
+        }
+      });
+    }
 
     if (syntheticClient) {
       try {
@@ -676,7 +707,7 @@ async function runAttack(attackId, attackConfig, io, db, config, log, syntheticC
           await syntheticClient.waitForEvent(
             'delivery_en_route',
             event => event.data?.deliveryId === anchorId,
-            180000
+            1800000 // 30 minutes (to accommodate realistic drive times)
           );
           log(attackId, 'GPS', `📡 Driver now en route for anchor delivery ${anchorId}. GPS spoof primed.`, io, db);
         } catch (error) {
@@ -695,7 +726,8 @@ const gpsResult = await GPSAgent(attackId, attackConfig, io, db, config, log, sy
     
     if (syntheticClient) {
       try {
-        await syntheticClient.waitForEvent('gps_spoof_applied', () => true, 60000);
+        // Wait longer for GPS spoof confirmation (5 minutes)
+        await syntheticClient.waitForEvent('gps_spoof_applied', () => true, 300000);
         log(attackId, 'GPS', '🛰️ Synthetic stream acknowledged GPS spoof diversion.', io, db);
       } catch (error) {
         log(attackId, 'GPS', `⚠️ No GPS spoof confirmation from synthetic stream (${error.message}).`, io, db);

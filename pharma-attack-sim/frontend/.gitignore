@@ -1,0 +1,6 @@
+node_modules
+attacks.db
+*.log
+.DS_Store
+.env
+

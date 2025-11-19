@@ -35,6 +35,47 @@ let dispatcherInterval = null;
 function broadcastEvent(event) {
   simulationState.eventCount++;
   
+  // Log relevant context to console for user visibility
+  const timestamp = new Date().toLocaleTimeString();
+  
+  // ANSI Color Codes
+  const colors = {
+    reset: "\x1b[0m",
+    cyan: "\x1b[36m",
+    blue: "\x1b[34m",
+    magenta: "\x1b[35m",
+    green: "\x1b[32m",
+    yellow: "\x1b[33m",
+    red: "\x1b[31m"
+  };
+
+  switch (event.type) {
+    case 'simulation_started':
+      console.log(`${colors.cyan}[${timestamp}] 🚀 Simulation Started: Route ${event.data.routeId} (${event.data.totalDeliveries} deliveries)${colors.reset}`);
+      break;
+    case 'delivery_en_route':
+      console.log(`${colors.blue}[${timestamp}] 🚚 Driver En Route: Delivery ${event.data.sequenceNumber}/${event.data.totalDeliveries} - ${event.data.medication} for ${event.data.patient}${colors.reset}`);
+      break;
+    case 'arrived_at_location':
+      console.log(`${colors.magenta}[${timestamp}] 📍 Arrived: ${event.data.location.name || 'Customer Location'}${colors.reset}`);
+      break;
+    case 'delivery_completed':
+      console.log(`${colors.green}[${timestamp}] ✅ Delivered: ${event.data.medication} to ${event.data.patient}${colors.reset}`);
+      break;
+    case 'route_completed':
+      console.log(`${colors.cyan}[${timestamp}] 🏁 Route Completed: ${event.data.completedDeliveries}/${event.data.totalDeliveries} deliveries successful${colors.reset}`);
+      break;
+    case 'gps_spoof_applied':
+      console.log(`${colors.yellow}[${timestamp}] ⚠️ GPS SPOOF ACTIVE: Diverting to ${event.data.location.lat}, ${event.data.location.lng}${colors.reset}`);
+      break;
+    case 'gps_spoof_resolved':
+      console.log(`${colors.green}[${timestamp}] 🔄 GPS Signal Restored${colors.reset}`);
+      break;
+    case 'api_alert':
+      console.log(`${colors.red}[${timestamp}] 🚨 API Alert Injected: ${event.data.message}${colors.reset}`);
+      break;
+  }
+
   const message = `data: ${JSON.stringify({
     ...event,
     timestamp: new Date().toISOString(),

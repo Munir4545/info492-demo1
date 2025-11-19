@@ -27,13 +27,23 @@ const {
 } = require('./session-manager');
 const humanOversight = require('./human-oversight');
 const decisionEngine = require('./decision-engine');
+const CampaignManager = require('./campaign-manager');
 const SyntheticClient = require('./synthetic-client');
+const mongoose = require('mongoose');
+const AttackLog = require('./models/AttackLog');
 
 const SYNTHETIC_API_BASE = (process.env.SYNTHETIC_API_BASE || 'http://localhost:8007').replace(/\/$/, '');
 const AUTO_LOOP_DELAY_MS = parseInt(process.env.AUTO_LOOP_DELAY_MS || '5000', 10);
 
 const SIM_TOTAL_MINUTES = parseInt(process.env.SIM_TOTAL_MINUTES || `${24 * 60}`, 10);
 const SIM_MINUTE_MS = parseInt(process.env.SIM_MINUTE_MS || '1000', 10);
+
+// MongoDB Connection
+const MONGODB_URI = `mongodb+srv://emammunir_db_user:${process.env.MONGODB_PASSWORD}@cluster0.mqsnysc.mongodb.net/pharma-attack-sim?retryWrites=true&w=majority&appName=Cluster0`;
+
+mongoose.connect(MONGODB_URI)
+  .then(() => console.log('✅ MongoDB connected successfully'))
+  .catch(err => console.error('❌ MongoDB connection error:', err));
 
 const app = express();
 const server = http.createServer(app);
@@ -79,7 +89,7 @@ function kickoffAttack(attackId, attackConfig, syntheticClient = null) {
   agents.setMetricsTracker({ getAttackMetrics, updateAttackMetrics });
 
   const attackPromise = agents.runAttack(attackId, attackConfig, io, db, config, log, syntheticClient)
-    .then((success) => {
+    .then(async (success) => {
       const finalMetrics = finalizeAttackMetrics(attackId);
 
       if (finalMetrics) {
@@ -123,9 +133,15 @@ function kickoffAttack(attackId, attackConfig, syntheticClient = null) {
           finalMetrics.api_effectiveness,
           attackId
         );
+        
+        // Save to MongoDB
+        await saveAttackToMongoDB(attackId, attackConfig, 'completed', success, finalMetrics);
       } else {
         const completeStmt = db.prepare('UPDATE attacks SET status = ?, success = ?, completed_at = CURRENT_TIMESTAMP WHERE id = ?');
         completeStmt.run('completed', success ? 1 : 0, attackId);
+        
+        // Save to MongoDB even without detailed metrics
+        await saveAttackToMongoDB(attackId, attackConfig, 'completed', success, null);
       }
 
       io.emit('attack:completed', { attackId, success });
@@ -133,10 +149,14 @@ function kickoffAttack(attackId, attackConfig, syntheticClient = null) {
       attackEventBus.emit('attack_completed', { attackId, success });
       console.log(`[AUTONOMY] Attack ${attackId} completed (success=${success})`);
     })
-    .catch((error) => {
+    .catch(async (error) => {
       console.error('Attack error:', error);
       const failStmt = db.prepare('UPDATE attacks SET status = ?, success = ? WHERE id = ?');
       failStmt.run('failed', 0, attackId);
+      
+      // Save failed attack to MongoDB
+      await saveAttackToMongoDB(attackId, attackConfig, 'failed', false, null, error.message);
+      
       io.emit('attack:failed', { attackId, error: error.message });
       decisionEngine.stop(attackId);
       attackEventBus.emit('attack_failed', { attackId, error });
@@ -207,11 +227,22 @@ async function waitForManifest(timeoutMs = 45000, pollInterval = 2000) {
 }
 
 function buildAttackConfigFromManifest(manifest) {
-  const driverName = manifest?.driver?.displayName || manifest?.driver?.name || 'Unknown Driver';
-  const persona = manifest?.driver?.persona || 'TIME_PRESSURED';
-  const vulnerability = manifest?.driver?.vulnerabilityScore || 70;
-  const derivedRate = Math.min(0.9, Math.max(0.25, vulnerability / 130));
+  // Use CampaignManager to pick the best target
+  const targetSelection = campaignManager.selectTarget(manifest);
+  const targetData = targetSelection.data;
+  const isDispatcher = targetSelection.type === 'dispatcher';
+
+  const driverName = targetData.displayName || targetData.name || 'Unknown Target';
+  // Adjust persona/vuln based on history if available
+  const profile = campaignManager.getDriverProfile(driverName);
+  
+  const vulnerability = profile 
+    ? (profile.susceptibility_score * 100) 
+    : (targetData.vulnerabilityScore || 70);
+    
+  const derivedRate = Math.min(0.9, Math.max(0.25, vulnerability / 100));
   const fakeCoords = config?.agents?.gps?.fakeCoordinates || [46.7298, -117.1817];
+  
   let gpsTarget = null;
   if (Array.isArray(manifest?.deliveries) && manifest.deliveries.length > 0) {
     gpsTarget = manifest.deliveries.reduce((best, delivery) => {
@@ -225,11 +256,35 @@ function buildAttackConfigFromManifest(manifest) {
       return best;
     }, null);
   }
+  
+  const currentDay = campaignManager.getCampaignDay();
+
+  // Calculate GPS Spoof Target based on the next delivery's destination
+  // This masks the diversion by telling the dispatcher the driver is at the *intended* destination
+  let gpsSpoofTargetLocation = null;
+  if (Array.isArray(manifest?.deliveries) && manifest.deliveries.length > 0) {
+    // Find the anchor delivery (or default to the first one)
+    const anchorDelivery = gpsTarget?.delivery || manifest.deliveries[0];
+    gpsSpoofTargetLocation = {
+        lat: anchorDelivery.destination.lat,
+        lng: anchorDelivery.destination.lng
+    };
+  }
+
+  // If no delivery found, fall back to config fake coords (unlikely in valid manifest)
+  if (!gpsSpoofTargetLocation) {
+      gpsSpoofTargetLocation = {
+          lat: fakeCoords[0],
+          lng: fakeCoords[1]
+      };
+  }
+
   return {
     targetDriver: driverName,
-    targetTier: persona === 'DISPATCHER' ? 'tier3' : 'tier2',
+    targetTier: isDispatcher ? 'tier3' : 'tier2',
     baseSuccessRate: Number(derivedRate.toFixed(2)),
     vectorPlan: ['phishing', 'gps', 'api'],
+    day: currentDay,
     manifestSummary: {
       routeId: manifest?.routeId,
       totalDeliveries: manifest?.totalDeliveries,
@@ -237,10 +292,7 @@ function buildAttackConfigFromManifest(manifest) {
     },
     gpsSpoofAnchorDeliveryId: gpsTarget?.delivery?.id || null,
     gpsSpoofAnchorSequence: gpsTarget?.delivery?.sequenceNumber || null,
-    gpsSpoofTargetLocation: {
-      lat: fakeCoords[0],
-      lng: fakeCoords[1]
-    }
+    gpsSpoofTargetLocation: gpsSpoofTargetLocation
   };
 }
 
@@ -270,7 +322,28 @@ const autoRunner = (() => {
           attackConfig.syntheticManifest = manifest;
           const attackId = createAttackRecord(attackConfig);
           currentAttackId = attackId;
+          
+          console.log(`[AUTONOMY] Campaign Day ${attackConfig.day}: Targeting ${attackConfig.targetDriver}`);
+          
           await kickoffAttack(attackId, attackConfig, syntheticClient);
+          
+          // Record results for campaign memory
+          const metrics = getAttackMetrics(attackId);
+          // Wait for metrics to be finalized if not yet done
+          const finalStatus = db.prepare('SELECT success, phishing_success, gps_success, api_success FROM attacks WHERE id = ?').get(attackId);
+          
+          // Heuristic: If phishing failed, it was likely detected or ignored.
+          // If Phishing succeeded but GPS/API failed, it might be partial detection.
+          const wasDetected = !finalStatus.success && !finalStatus.phishing_success; 
+          
+          campaignManager.recordAttackResult(attackConfig.targetDriver, finalStatus.success, wasDetected);
+          
+          // Every 3 cycles, advance the day
+          if (cycle % 3 === 0) {
+             const newDay = campaignManager.incrementCampaignDay();
+             console.log(`[AUTONOMY] 🌙 Night falls... Advancing to Campaign Day ${newDay}`);
+          }
+          
           await stopSyntheticSimulation();
         } finally {
           if (syntheticClient) {
@@ -332,9 +405,11 @@ function initializeAttackMetrics(attackId) {
     affectedPatients: 0,
     criticalMedications: 0,
     financialImpact: 0,
-    phishing: { attempted: false, success: false, effectiveness: 0 },
-    gps: { attempted: false, success: false, effectiveness: 0 },
-    api: { attempted: false, success: false, effectiveness: 0 }
+    phishing: { attempted: false, success: false, effectiveness: 0, message: '', llm_evaluations: [], click_rate_prediction: 0 },
+    gps: { attempted: false, success: false, effectiveness: 0, spoofed_location: null, diversion_distance: 0 },
+    api: { attempted: false, success: false, effectiveness: 0, alerts_sent: 0, bury_position: 0 },
+    logs: [],
+    decision_events: []
   });
 }
 
@@ -342,12 +417,113 @@ function updateAttackMetrics(attackId, updates) {
   const metrics = attackMetricsTracker.get(attackId);
   if (!metrics) return;
   
+  // Deep merge for nested objects
+  if (updates.phishing) {
+    metrics.phishing = { ...metrics.phishing, ...updates.phishing };
+    delete updates.phishing;
+  }
+  if (updates.gps) {
+    metrics.gps = { ...metrics.gps, ...updates.gps };
+    delete updates.gps;
+  }
+  if (updates.api) {
+    metrics.api = { ...metrics.api, ...updates.api };
+    delete updates.api;
+  }
+  
   Object.assign(metrics, updates);
   attackMetricsTracker.set(attackId, metrics);
 }
 
 function getAttackMetrics(attackId) {
   return attackMetricsTracker.get(attackId) || null;
+}
+
+async function saveAttackToMongoDB(attackId, attackConfig, status, success, metrics, errorMessage = null) {
+  try {
+    const inMemoryMetrics = attackMetricsTracker.get(attackId) || {};
+    
+    // Get decision events from SQLite
+    const decisionEventsStmt = db.prepare('SELECT * FROM decision_event_logs WHERE attack_id = ? ORDER BY id ASC');
+    const decisionEvents = decisionEventsStmt.all(attackId);
+    
+    // Get all logs from SQLite
+    const logsStmt = db.prepare('SELECT * FROM logs WHERE attack_id = ? ORDER BY timestamp');
+    const allLogs = logsStmt.all(attackId);
+    
+    const attackLog = new AttackLog({
+      attackId,
+      timestamp: new Date(),
+      config: attackConfig,
+      status,
+      success,
+      
+      // Metrics
+      duration_seconds: metrics?.duration_seconds,
+      compromised_deliveries: metrics?.compromised_deliveries || inMemoryMetrics.compromisedDeliveries,
+      affected_patients: metrics?.affected_patients || inMemoryMetrics.affectedPatients,
+      critical_medications: metrics?.critical_medications || inMemoryMetrics.criticalMedications,
+      financial_impact: metrics?.financial_impact || inMemoryMetrics.financialImpact,
+      time_to_impact_seconds: metrics?.time_to_impact_seconds,
+      detection_delay_seconds: metrics?.detection_delay_seconds,
+      recovery_time_minutes: metrics?.recovery_time_minutes,
+      
+      // Vector details
+      phishing: {
+        attempted: inMemoryMetrics.phishing?.attempted || false,
+        success: metrics?.phishing_success === 1 || inMemoryMetrics.phishing?.success || false,
+        effectiveness: metrics?.phishing_effectiveness || inMemoryMetrics.phishing?.effectiveness || 0,
+        message: inMemoryMetrics.phishing?.message || '',
+        llm_evaluations: inMemoryMetrics.phishing?.llm_evaluations || [],
+        click_rate_prediction: inMemoryMetrics.phishing?.click_rate_prediction || 0
+      },
+      gps: {
+        attempted: inMemoryMetrics.gps?.attempted || false,
+        success: metrics?.gps_success === 1 || inMemoryMetrics.gps?.success || false,
+        effectiveness: metrics?.gps_effectiveness || inMemoryMetrics.gps?.effectiveness || 0,
+        spoofed_location: inMemoryMetrics.gps?.spoofed_location || attackConfig.gpsSpoofTargetLocation,
+        diversion_distance: inMemoryMetrics.gps?.diversion_distance || 0
+      },
+      api: {
+        attempted: inMemoryMetrics.api?.attempted || false,
+        success: metrics?.api_success === 1 || inMemoryMetrics.api?.success || false,
+        effectiveness: metrics?.api_effectiveness || inMemoryMetrics.api?.effectiveness || 0,
+        alerts_sent: inMemoryMetrics.api?.alerts_sent || 0,
+        bury_position: inMemoryMetrics.api?.bury_position || 0
+      },
+      
+      // Logs and events
+      logs: allLogs.map(log => ({
+        agent: log.agent,
+        message: log.message,
+        timestamp: new Date(log.timestamp)
+      })),
+      decision_events: decisionEvents.map(event => ({
+        event_type: event.event_type,
+        agent: event.agent,
+        vector: event.vector,
+        description: event.description,
+        outcome: event.outcome,
+        impact: event.impact,
+        agent_reasoning: event.agent_reasoning,
+        detection_risk: event.detection_risk,
+        compromise_rate: event.compromise_rate,
+        sim_minute: event.sim_minute,
+        metadata: event.metadata,
+        created_at: new Date(event.created_at)
+      })),
+      
+      synthetic_manifest: attackConfig.syntheticManifest,
+      
+      // Error info if failed
+      error: errorMessage ? { message: errorMessage, timestamp: new Date() } : undefined
+    });
+    
+    await attackLog.save();
+    console.log(`✅ Attack ${attackId} saved to MongoDB`);
+  } catch (error) {
+    console.error(`❌ Failed to save attack ${attackId} to MongoDB:`, error.message);
+  }
 }
 
 function finalizeAttackMetrics(attackId) {
@@ -476,6 +652,7 @@ const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
 // Initialize database
 const dbPath = path.join(__dirname, 'attacks.db');
 const db = new Database(dbPath);
+const campaignManager = new CampaignManager(db);
 
 // Migrate database schema
 // Check if new columns exist, if not add them
@@ -632,6 +809,12 @@ function log(attackId, agent, message, io, db) {
   // Save to database
   const stmt = db.prepare('INSERT INTO logs (attack_id, agent, message) VALUES (?, ?, ?)');
   stmt.run(attackId, agent, message);
+  
+  // Add to in-memory metrics for MongoDB export
+  const metrics = attackMetricsTracker.get(attackId);
+  if (metrics) {
+    metrics.logs.push({ agent, message, timestamp: new Date(timestamp) });
+  }
   
   // Emit via Socket.IO
   io.emit('agent:message', {

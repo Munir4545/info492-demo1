@@ -36,8 +36,17 @@ app.use(cors({
 
 app.use(express.json());
 
-// Logging middleware
+// Logging middleware - Filtered for relevance
 app.use((req, res, next) => {
+  // Skip logging for high-frequency GET requests (polling/streaming)
+  if (req.method === 'GET' && (
+    req.path.includes('/stream') || 
+    req.path.includes('/stats') ||
+    req.path.includes('/active')
+  )) {
+    return next();
+  }
+  
   console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
   next();
 });

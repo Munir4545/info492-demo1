@@ -1,0 +1,14 @@
+{
+  "name": "pharma-attack-sim-root",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "concurrently \"npm run start:pharma\" \"npm run start:synthetic\" \"npm run trigger:delayed\"",
+    "start:pharma": "cd pharma-attack-sim/backend && npm start",
+    "start:synthetic": "cd synthetic-industry/backend && npm start",
+    "trigger:delayed": "node wait-and-trigger.js"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
