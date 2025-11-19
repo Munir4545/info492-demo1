@@ -4,7 +4,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "start_attack": "node scripts/start-attack.js"
+    "start_attack": "node scripts/start-attack.js",
+    "analyze": "node scripts/analyze-24hr.js"
   },
   "dependencies": {
     "@simplewebauthn/server": "^8.3.1",

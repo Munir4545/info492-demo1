@@ -31,6 +31,7 @@ const CampaignManager = require('./campaign-manager');
 const SyntheticClient = require('./synthetic-client');
 const mongoose = require('mongoose');
 const AttackLog = require('./models/AttackLog');
+const PatternLearningSystem = require('./pattern-learning');
 
 const SYNTHETIC_API_BASE = (process.env.SYNTHETIC_API_BASE || 'http://localhost:8007').replace(/\/$/, '');
 const AUTO_LOOP_DELAY_MS = parseInt(process.env.AUTO_LOOP_DELAY_MS || '5000', 10);
@@ -44,6 +45,10 @@ const MONGODB_URI = `mongodb+srv://emammunir_db_user:${process.env.MONGODB_PASSW
 mongoose.connect(MONGODB_URI)
   .then(() => console.log('✅ MongoDB connected successfully'))
   .catch(err => console.error('❌ MongoDB connection error:', err));
+
+// Initialize Pattern Learning System
+const learningSystem = new PatternLearningSystem(MONGODB_URI);
+learningSystem.connect().catch(err => console.error('⚠️ Pattern Learning System initialization failed:', err));
 
 const app = express();
 const server = http.createServer(app);
@@ -1118,6 +1123,39 @@ app.get('/api/autonomous/status', authenticate, (req, res) => {
     success: true,
     status: autoRunner.status()
   });
+});
+
+// Pattern Learning System Endpoints
+app.get('/api/learning/patterns', authenticate, async (req, res) => {
+  try {
+    const hours = parseInt(req.query.hours || '24', 10);
+    const patterns = await learningSystem.analyzePatterns(hours);
+    res.json({ success: true, patterns });
+  } catch (error) {
+    console.error('Error fetching patterns:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/learning/strategy', authenticate, async (req, res) => {
+  try {
+    const strategy = await learningSystem.getStrategyRecommendations();
+    res.json({ success: true, strategy });
+  } catch (error) {
+    console.error('Error fetching strategy:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/learning/report', authenticate, async (req, res) => {
+  try {
+    const hours = parseInt(req.query.hours || '24', 10);
+    const report = await learningSystem.generateReport(hours);
+    res.json({ success: true, report });
+  } catch (error) {
+    console.error('Error generating report:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
 });
 
 // Manual agent trigger endpoint

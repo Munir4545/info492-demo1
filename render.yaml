@@ -1,0 +1,39 @@
+services:
+  - type: web
+    name: pharma-attack-backend
+    env: docker
+    dockerfilePath: ./pharma-attack-sim/backend/Dockerfile
+    dockerContext: ./pharma-attack-sim/backend
+    envVars:
+      - key: PORT
+        value: 3001
+      - key: MONGODB_PASSWORD
+        sync: false
+      - key: NODE_ENV
+        value: production
+      - key: SYNTHETIC_API_BASE
+        value: https://synthetic-industry-backend.onrender.com
+    healthCheckPath: /api/attacks
+
+  - type: web
+    name: synthetic-industry-backend
+    env: docker
+    dockerfilePath: ./synthetic-industry/backend/Dockerfile
+    dockerContext: ./synthetic-industry/backend
+    envVars:
+      - key: PORT
+        value: 8007
+      - key: NODE_ENV
+        value: production
+    healthCheckPath: /api/synthetic/stats
+
+  - type: web
+    name: synthetic-industry-frontend
+    env: docker
+    dockerfilePath: ./synthetic-industry/frontend/Dockerfile
+    dockerContext: ./synthetic-industry/frontend
+    envVars:
+      - key: VITE_API_URL
+        value: https://synthetic-industry-backend.onrender.com
+    buildCommand: npm run build
+

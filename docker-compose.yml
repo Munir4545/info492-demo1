@@ -1,0 +1,71 @@
+version: '3.8'
+
+services:
+  pharma-attack-backend:
+    build:
+      context: ./pharma-attack-sim/backend
+      dockerfile: Dockerfile
+    container_name: pharma-attack-backend
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - MONGODB_PASSWORD=${MONGODB_PASSWORD}
+      - NODE_ENV=production
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/api/attacks', (r) => {process.exit(r.statusCode === 401 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    volumes:
+      - pharma-data:/app/data
+    networks:
+      - pharma-network
+
+  synthetic-industry-backend:
+    build:
+      context: ./synthetic-industry/backend
+      dockerfile: Dockerfile
+    container_name: synthetic-industry-backend
+    ports:
+      - "8007:8007"
+    environment:
+      - PORT=8007
+      - NODE_ENV=production
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:8007/api/synthetic/stats', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    volumes:
+      - synthetic-data:/app/data
+    networks:
+      - pharma-network
+
+  synthetic-industry-frontend:
+    build:
+      context: ./synthetic-industry/frontend
+      dockerfile: Dockerfile
+    container_name: synthetic-industry-frontend
+    ports:
+      - "8001:8001"
+    environment:
+      - VITE_API_URL=http://localhost:8007
+    depends_on:
+      - synthetic-industry-backend
+    restart: unless-stopped
+    networks:
+      - pharma-network
+
+volumes:
+  pharma-data:
+  synthetic-data:
+
+networks:
+  pharma-network:
+    driver: bridge
+

@@ -547,17 +547,33 @@ function App() {
   return (
     <div className="min-h-screen bg-gray-900 text-white flex flex-col">
       {/* Header */}
-      <header className="bg-gray-800 border-b border-gray-700 py-6">
+      <header className="bg-gray-800 border-b border-gray-700 py-4">
         <div className="container mx-auto px-4">
-          <h1 className="text-4xl font-bold text-center">
-            🚚 Synthetic Industry Stream
-          </h1>
-          <p className="text-gray-400 text-center mt-2">
-            Single Driver • Multiple Deliveries • One Route
-          </p>
-          <p className="text-gray-500 text-center text-sm mt-1">
-            Simulates a delivery driver completing multiple pharmaceutical deliveries with dispatcher coordination
-          </p>
+          <div className="flex items-center justify-between">
+            <div className="flex-1">
+              <h1 className="text-2xl font-bold">
+                PharmaLogistics Dashboard
+              </h1>
+              <p className="text-gray-400 text-sm mt-1">
+                Delivery Management System
+              </p>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="text-right">
+                <p className="text-sm text-gray-300">{sessionStorage.getItem('username') || 'User'}</p>
+                <p className="text-xs text-gray-500">{sessionStorage.getItem('role') || 'Viewer'}</p>
+              </div>
+              <button
+                onClick={() => {
+                  sessionStorage.clear();
+                  window.location.href = '/login';
+                }}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm transition"
+              >
+                Logout
+              </button>
+            </div>
+          </div>
         </div>
       </header>
       
