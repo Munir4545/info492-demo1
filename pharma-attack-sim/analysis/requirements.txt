@@ -1,0 +1,10 @@
+pymongo
+pandas
+matplotlib
+seaborn
+python-dotenv
+jupyter
+notebook
+ipykernel
+numpy
+scipy
