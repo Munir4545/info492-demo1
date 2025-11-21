@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { SyntheticStreamClient } from './lib/syntheticStream';
 import { ControlPanel } from './components/ControlPanel';
 import { LiveStatistics } from './components/LiveStatistics';
 import { EventStream } from './components/EventStream';
 import { StreamMap } from './components/StreamMap';
 import { ApiDataPanel } from './components/ApiDataPanel';
-import { Delivery, SimulationStats, StreamEvent, RouteManifest, Coordinates } from './types';
+import { Delivery, SimulationStats, StreamEvent, RouteManifest, Coordinates, DeliveryStatus } from './types';
 
 const DEFAULT_BACKEND = 'http://localhost:8007';
 const API_BASE_URL = (import.meta.env.VITE_SYNTHETIC_API || DEFAULT_BACKEND).replace(/\/$/, '');
@@ -262,14 +262,14 @@ function App() {
       if (event.data?.deliveryId) {
         setDeliveries(prev => prev.map(d =>
           d.id === event.data.deliveryId
-            ? { ...d, status: 'en_route' }
+            ? { ...d, status: 'en_route' as DeliveryStatus }
             : d
         ));
         setRouteManifest(prev => {
           if (!prev) return prev;
           const updatedDeliveries = prev.deliveries.map(d =>
             d.id === event.data.deliveryId
-              ? { ...d, status: 'en_route' }
+              ? { ...d, status: 'en_route' as DeliveryStatus }
               : d
           );
           const updated = { ...prev, deliveries: updatedDeliveries };
@@ -285,14 +285,14 @@ function App() {
       if (event.data?.deliveryId) {
         setDeliveries(prev => prev.map(d =>
           d.id === event.data.deliveryId
-            ? { ...d, status: 'at_location' }
+            ? { ...d, status: 'at_location' as DeliveryStatus }
             : d
         ));
         setRouteManifest(prev => {
           if (!prev) return prev;
           const updatedDeliveries = prev.deliveries.map(d =>
             d.id === event.data.deliveryId
-              ? { ...d, status: 'at_location' }
+              ? { ...d, status: 'at_location' as DeliveryStatus }
               : d
           );
           const updated = { ...prev, deliveries: updatedDeliveries };
@@ -311,14 +311,14 @@ function App() {
       if (event.data?.deliveryId) {
         setDeliveries(prev => prev.map(d =>
           d.id === event.data.deliveryId
-            ? { ...d, status: 'delivered' }
+            ? { ...d, status: 'delivered' as DeliveryStatus }
             : d
         ));
         setRouteManifest(prev => {
           if (!prev) return prev;
           const updatedDeliveries = prev.deliveries.map(d =>
             d.id === event.data.deliveryId
-              ? { ...d, status: 'delivered' }
+              ? { ...d, status: 'delivered' as DeliveryStatus }
               : d
           );
           const updated = { ...prev, deliveries: updatedDeliveries };
