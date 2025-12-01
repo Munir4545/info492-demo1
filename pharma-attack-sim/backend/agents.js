@@ -238,7 +238,7 @@ async function PhishingAgent(attackId, attackConfig, io, db, config, log) {
     log(attackId, 'Phishing', `🔧 Applying calibration: (${(baseSuccessRate * 100).toFixed(0)}% config × ${configWeight}) + (${(rawCTR * 100).toFixed(0)}% LLM × ${llmWeight}) = ${(calibratedRate * 100).toFixed(0)}%`, io, db);
   }
 
-  // Update metrics for MongoDB (now that calibratedRate is defined)
+  // Update metrics for ChromaDB (now that calibratedRate is defined)
   if (metricsTracker) {
     metricsTracker.updateAttackMetrics(attackId, {
       phishing: {
@@ -411,7 +411,7 @@ async function GPSAgent(attackId, attackConfig, io, db, config, log, syntheticCl
       }
     }
     
-    // Update metrics for MongoDB
+    // Update metrics for ChromaDB
     if (metricsTracker) {
       metricsTracker.updateAttackMetrics(attackId, {
         gps: {
@@ -604,7 +604,7 @@ async function APIFloodingAgent(attackId, attackConfig, io, db, config, log, syn
     trackVectorSuccess(attackId, 'api', true, 78);
     io.emit('impact:updated', apiImpactData);
     
-    // Update metrics for MongoDB
+    // Update metrics for ChromaDB
     if (metricsTracker) {
       metricsTracker.updateAttackMetrics(attackId, {
         api: {

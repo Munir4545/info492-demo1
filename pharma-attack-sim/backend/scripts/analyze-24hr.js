@@ -2,18 +2,17 @@
 
 /**
  * 24-Hour Data Analysis Script
- * Analyzes attack data from MongoDB after 24 hours of runtime
+ * Analyzes attack data from ChromaDB vector database after 24 hours of runtime
+ * Uses semantic search to identify attack patterns
  */
 
 const PatternLearningSystem = require('../pattern-learning');
 require('dotenv').config({ path: require('path').join(__dirname, '..', '..', '.env') });
 
-const MONGODB_URI = `mongodb+srv://emammunir_db_user:${process.env.MONGODB_PASSWORD}@cluster0.mqsnysc.mongodb.net/pharma-attack-sim?retryWrites=true&w=majority&appName=Cluster0`;
-
 async function main() {
-  console.log('📊 Starting 24-Hour Attack Data Analysis...\n');
+  console.log('📊 Starting 24-Hour Attack Data Analysis (ChromaDB)...\n');
 
-  const learningSystem = new PatternLearningSystem(MONGODB_URI);
+  const learningSystem = new PatternLearningSystem();
 
   try {
     await learningSystem.connect();
@@ -26,6 +25,17 @@ async function main() {
     console.log('='.repeat(80));
     console.log(`Generated: ${report.generatedAt}`);
     console.log(`Analysis Period: ${report.analysisPeriod}`);
+    
+    // Vector database info
+    if (report.vectorDatabase) {
+      console.log(`\n🗄️ VECTOR DATABASE`);
+      console.log('-'.repeat(80));
+      console.log(`Type: ${report.vectorDatabase.type}`);
+      console.log(`Collection: ${report.vectorDatabase.collection}`);
+      console.log(`Total Embeddings: ${report.vectorDatabase.totalDocuments}`);
+      console.log(`Connected: ${report.vectorDatabase.connected ? 'Yes' : 'No'}`);
+    }
+    
     console.log('\n📊 SUMMARY');
     console.log('-'.repeat(80));
     console.log(`Total Attacks: ${report.summary.totalAttacks}`);
@@ -100,7 +110,7 @@ async function main() {
     console.log(`Priority Targets: ${report.strategy.priorityTargets.join(', ') || 'None identified'}`);
 
     console.log('\n' + '='.repeat(80));
-    console.log('✅ Analysis Complete');
+    console.log('✅ Analysis Complete (Powered by ChromaDB Vector Search)');
     console.log('='.repeat(80));
 
     // Save report to file
@@ -117,4 +127,3 @@ async function main() {
 }
 
 main();
-

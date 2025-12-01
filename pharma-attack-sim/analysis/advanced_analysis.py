@@ -171,8 +171,18 @@ def analyze_and_visualize(df):
 
     # 1. Financial Impact Distribution (Histogram + KDE)
     plt.figure(figsize=(10, 6))
-    sns.histplot(data=df, x='financial_impact', kde=True, bins=20, color='teal')
-    plt.title('Distribution of Financial Impact per Attack')
+    
+    # Filter out zero impact for clearer view of actual losses
+    impact_df = df[df['financial_impact'] > 0]
+    
+    if not impact_df.empty:
+        # Use 4 bins as requested
+        sns.histplot(data=impact_df, x='financial_impact', kde=True, bins=4, color='teal')
+        plt.title('Distribution of Financial Impact (Excluding $0)')
+    else:
+        plt.text(0.5, 0.5, "No non-zero financial impact data found", ha='center', va='center')
+        plt.title('Distribution of Financial Impact')
+        
     plt.xlabel('Financial Impact ($)')
     plt.ylabel('Frequency')
     plt.tight_layout()
@@ -252,6 +262,32 @@ def analyze_and_visualize(df):
         
         plt.tight_layout()
         save_plot('success_timeline.png')
+
+    # 6. Financial Impact Over Time (Smoothed, Non-Zero)
+    if len(df) > 1 and 'timestamp' in df.columns:
+        # Filter for non-zero impact
+        df_impact = df[df['financial_impact'] > 0].sort_values('timestamp')
+        
+        if not df_impact.empty:
+            plt.figure(figsize=(12, 6))
+            
+            # Scatter for raw points
+            sns.scatterplot(data=df_impact, x='timestamp', y='financial_impact', 
+                            color='orange', s=50, alpha=0.5, label='Raw Impact')
+            
+            # Rolling Average for smoothing
+            if len(df_impact) >= 5:
+                # Use a slightly larger window for smoother look (15% of data)
+                window_size = max(3, int(len(df_impact) * 0.15)) 
+                df_impact['rolling_impact'] = df_impact['financial_impact'].rolling(window=window_size, min_periods=1).mean()
+                sns.lineplot(data=df_impact, x='timestamp', y='rolling_impact', 
+                             color='darkred', linewidth=3, label=f'Trend (Mov Avg {window_size})')
+            
+            plt.title('Financial Impact Over Time (Non-Zero Attacks)')
+            plt.ylabel('Financial Impact ($)')
+            plt.xticks(rotation=45)
+            plt.tight_layout()
+            save_plot('financial_impact_timeline.png')
 
 def save_plot(filename):
     path = os.path.join(OUTPUT_DIR, filename)

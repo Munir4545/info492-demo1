@@ -29,7 +29,7 @@ const humanOversight = require('./human-oversight');
 const decisionEngine = require('./decision-engine');
 const CampaignManager = require('./campaign-manager');
 const SyntheticClient = require('./synthetic-client');
-const mongoose = require('mongoose');
+const chromaClient = require('./chroma-client');
 const AttackLog = require('./models/AttackLog');
 const PatternLearningSystem = require('./pattern-learning');
 
@@ -39,15 +39,13 @@ const AUTO_LOOP_DELAY_MS = parseInt(process.env.AUTO_LOOP_DELAY_MS || '5000', 10
 const SIM_TOTAL_MINUTES = parseInt(process.env.SIM_TOTAL_MINUTES || `${24 * 60}`, 10);
 const SIM_MINUTE_MS = parseInt(process.env.SIM_MINUTE_MS || '1000', 10);
 
-// MongoDB Connection
-const MONGODB_URI = `mongodb+srv://emammunir_db_user:${process.env.MONGODB_PASSWORD}@cluster0.mqsnysc.mongodb.net/pharma-attack-sim?retryWrites=true&w=majority&appName=Cluster0`;
+// ChromaDB Connection (Vector Database)
+chromaClient.initChroma()
+  .then(() => console.log('✅ ChromaDB vector database connected successfully'))
+  .catch(err => console.error('❌ ChromaDB connection error:', err));
 
-mongoose.connect(MONGODB_URI)
-  .then(() => console.log('✅ MongoDB connected successfully'))
-  .catch(err => console.error('❌ MongoDB connection error:', err));
-
-// Initialize Pattern Learning System
-const learningSystem = new PatternLearningSystem(MONGODB_URI);
+// Initialize Pattern Learning System (uses ChromaDB for semantic search)
+const learningSystem = new PatternLearningSystem();
 learningSystem.connect().catch(err => console.error('⚠️ Pattern Learning System initialization failed:', err));
 
 const app = express();
@@ -139,14 +137,14 @@ function kickoffAttack(attackId, attackConfig, syntheticClient = null) {
           attackId
         );
         
-        // Save to MongoDB
-        await saveAttackToMongoDB(attackId, attackConfig, 'completed', success, finalMetrics);
+        // Save to ChromaDB
+        await saveAttackToChroma(attackId, attackConfig, 'completed', success, finalMetrics);
       } else {
         const completeStmt = db.prepare('UPDATE attacks SET status = ?, success = ?, completed_at = CURRENT_TIMESTAMP WHERE id = ?');
         completeStmt.run('completed', success ? 1 : 0, attackId);
         
-        // Save to MongoDB even without detailed metrics
-        await saveAttackToMongoDB(attackId, attackConfig, 'completed', success, null);
+        // Save to ChromaDB even without detailed metrics
+        await saveAttackToChroma(attackId, attackConfig, 'completed', success, null);
       }
 
       io.emit('attack:completed', { attackId, success });
@@ -160,7 +158,7 @@ function kickoffAttack(attackId, attackConfig, syntheticClient = null) {
       failStmt.run('failed', 0, attackId);
       
       // Save failed attack to MongoDB
-      await saveAttackToMongoDB(attackId, attackConfig, 'failed', false, null, error.message);
+      await saveAttackToChroma(attackId, attackConfig, 'failed', false, null, error.message);
       
       io.emit('attack:failed', { attackId, error: error.message });
       decisionEngine.stop(attackId);
@@ -444,7 +442,7 @@ function getAttackMetrics(attackId) {
   return attackMetricsTracker.get(attackId) || null;
 }
 
-async function saveAttackToMongoDB(attackId, attackConfig, status, success, metrics, errorMessage = null) {
+async function saveAttackToChroma(attackId, attackConfig, status, success, metrics, errorMessage = null) {
   try {
     const inMemoryMetrics = attackMetricsTracker.get(attackId) || {};
     
@@ -524,10 +522,11 @@ async function saveAttackToMongoDB(attackId, attackConfig, status, success, metr
       error: errorMessage ? { message: errorMessage, timestamp: new Date() } : undefined
     });
     
+    // Save as embedding to ChromaDB vector database
     await attackLog.save();
-    console.log(`✅ Attack ${attackId} saved to MongoDB`);
+    console.log(`✅ Attack ${attackId} saved to ChromaDB as vector embedding`);
   } catch (error) {
-    console.error(`❌ Failed to save attack ${attackId} to MongoDB:`, error.message);
+    console.error(`❌ Failed to save attack ${attackId} to ChromaDB:`, error.message);
   }
 }
 
@@ -815,7 +814,7 @@ function log(attackId, agent, message, io, db) {
   const stmt = db.prepare('INSERT INTO logs (attack_id, agent, message) VALUES (?, ?, ?)');
   stmt.run(attackId, agent, message);
   
-  // Add to in-memory metrics for MongoDB export
+  // Add to in-memory metrics for ChromaDB export
   const metrics = attackMetricsTracker.get(attackId);
   if (metrics) {
     metrics.logs.push({ agent, message, timestamp: new Date(timestamp) });
@@ -1154,6 +1153,45 @@ app.get('/api/learning/report', authenticate, async (req, res) => {
     res.json({ success: true, report });
   } catch (error) {
     console.error('Error generating report:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Semantic Search Endpoints (ChromaDB Vector Database)
+app.post('/api/learning/similar', authenticate, async (req, res) => {
+  try {
+    const { attackPattern, nResults = 5 } = req.body;
+    if (!attackPattern) {
+      return res.status(400).json({ success: false, error: 'attackPattern is required' });
+    }
+    const similar = await learningSystem.findSimilarSuccessfulAttacks(attackPattern, nResults);
+    res.json({ success: true, similar });
+  } catch (error) {
+    console.error('Error finding similar attacks:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/learning/semantic-recommendations', authenticate, async (req, res) => {
+  try {
+    const { currentState } = req.body;
+    if (!currentState) {
+      return res.status(400).json({ success: false, error: 'currentState is required' });
+    }
+    const recommendations = await learningSystem.getSemanticRecommendations(currentState);
+    res.json({ success: true, recommendations });
+  } catch (error) {
+    console.error('Error getting semantic recommendations:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/vector-db/stats', authenticate, async (req, res) => {
+  try {
+    const stats = await chromaClient.getCollectionStats();
+    res.json({ success: true, stats });
+  } catch (error) {
+    console.error('Error getting vector DB stats:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

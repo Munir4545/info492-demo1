@@ -1,14 +1,13 @@
-const mongoose = require('mongoose');
-const AttackLogModel = require('./models/AttackLog');
-
 /**
  * Pattern Learning System
- * Analyzes past attack runs from MongoDB to identify patterns and improve strategy
+ * Analyzes past attack runs from ChromaDB vector database to identify patterns and improve strategy
+ * Uses semantic similarity to find related attack patterns
  */
+const chromaClient = require('./chroma-client');
+const AttackLog = require('./models/AttackLog');
+
 class PatternLearningSystem {
-  constructor(mongodbUri) {
-    this.mongodbUri = mongodbUri;
-    this.AttackLog = AttackLogModel;
+  constructor() {
     this.connected = false;
   }
 
@@ -16,9 +15,9 @@ class PatternLearningSystem {
     if (this.connected) return;
 
     try {
-      await mongoose.connect(this.mongodbUri);
+      await chromaClient.initChroma();
       this.connected = true;
-      console.log('✅ Pattern Learning System connected to MongoDB');
+      console.log('✅ Pattern Learning System connected to ChromaDB');
     } catch (error) {
       console.error('❌ Pattern Learning System connection error:', error);
       throw error;
@@ -26,26 +25,25 @@ class PatternLearningSystem {
   }
 
   /**
-   * Analyze patterns from past attacks
+   * Analyze patterns from past attacks using vector similarity
    * Returns insights for strategy improvement
    */
   async analyzePatterns(hours = 24) {
     if (!this.connected) await this.connect();
 
-    const cutoffTime = new Date(Date.now() - hours * 60 * 60 * 1000);
-
     try {
-      const attacks = await this.AttackLog.find({
-        timestamp: { $gte: cutoffTime }
-      }).sort({ timestamp: -1 });
-
-      if (attacks.length === 0) {
+      // Get recent attacks from ChromaDB
+      const results = await chromaClient.getAttacksByTimeRange(hours, 500);
+      
+      if (!results.metadatas || results.metadatas.length === 0) {
         return {
           totalAttacks: 0,
           insights: [],
           recommendations: ['No historical data available. Starting fresh campaign.']
         };
       }
+
+      const attacks = results.metadatas;
 
       const insights = {
         totalAttacks: attacks.length,
@@ -56,6 +54,7 @@ class PatternLearningSystem {
         timePatterns: {},
         targetPatterns: {},
         decisionPatterns: {},
+        semanticClusters: [],
         recommendations: []
       };
 
@@ -66,15 +65,22 @@ class PatternLearningSystem {
       const vectorFailure = {};
       const timeOfDay = {};
       const targetSuccess = {};
-      const decisionSuccess = {};
 
       attacks.forEach(attack => {
-        if (attack.success) successful++;
-        if (attack.detected) detected++;
+        const isSuccess = attack.success === 'true';
+        if (isSuccess) successful++;
+        if (attack.detected === 'true') detected++;
 
         // Vector analysis
-        attack.vectors?.forEach(vector => {
-          if (attack.success) {
+        let vectors = [];
+        try {
+          vectors = JSON.parse(attack.vectors || '[]');
+        } catch (e) {
+          vectors = [];
+        }
+        
+        vectors.forEach(vector => {
+          if (isSuccess) {
             vectorSuccess[vector] = (vectorSuccess[vector] || 0) + 1;
           } else {
             vectorFailure[vector] = (vectorFailure[vector] || 0) + 1;
@@ -82,29 +88,22 @@ class PatternLearningSystem {
         });
 
         // Time pattern analysis
-        const hour = new Date(attack.timestamp).getHours();
+        const timestamp = new Date(attack.timestamp);
+        const hour = timestamp.getHours();
         const timeSlot = hour < 6 ? 'night' : hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening';
         if (!timeOfDay[timeSlot]) timeOfDay[timeSlot] = { success: 0, total: 0 };
         timeOfDay[timeSlot].total++;
-        if (attack.success) timeOfDay[timeSlot].success++;
+        if (isSuccess) timeOfDay[timeSlot].success++;
 
         // Target analysis
         const target = attack.targetDriver || 'unknown';
         if (!targetSuccess[target]) targetSuccess[target] = { success: 0, total: 0 };
         targetSuccess[target].total++;
-        if (attack.success) targetSuccess[target].success++;
-
-        // Decision pattern analysis
-        attack.decisionEvents?.forEach(decision => {
-          const key = `${decision.triggerId}:${decision.selectedOption}`;
-          if (!decisionSuccess[key]) decisionSuccess[key] = { success: 0, total: 0 };
-          decisionSuccess[key].total++;
-          if (decision.success) decisionSuccess[key].success++;
-        });
+        if (isSuccess) targetSuccess[target].success++;
       });
 
-      insights.successRate = (successful / attacks.length) * 100;
-      insights.detectionRate = (detected / attacks.length) * 100;
+      insights.successRate = attacks.length > 0 ? (successful / attacks.length) * 100 : 0;
+      insights.detectionRate = attacks.length > 0 ? (detected / attacks.length) * 100 : 0;
 
       // Identify best/worst vectors
       Object.keys(vectorSuccess).forEach(vector => {
@@ -125,7 +124,7 @@ class PatternLearningSystem {
       Object.keys(timeOfDay).forEach(slot => {
         const data = timeOfDay[slot];
         insights.timePatterns[slot] = {
-          successRate: (data.success / data.total) * 100,
+          successRate: data.total > 0 ? (data.success / data.total) * 100 : 0,
           total: data.total
         };
       });
@@ -133,24 +132,12 @@ class PatternLearningSystem {
       // Target patterns
       Object.keys(targetSuccess).forEach(target => {
         const data = targetSuccess[target];
+        const rate = data.total > 0 ? (data.success / data.total) * 100 : 0;
         insights.targetPatterns[target] = {
-          successRate: (data.success / data.total) * 100,
+          successRate: rate,
           total: data.total,
-          recommendation: data.successRate >= 70 ? 'high_priority' : data.successRate <= 30 ? 'avoid' : 'moderate'
+          recommendation: rate >= 70 ? 'high_priority' : rate <= 30 ? 'avoid' : 'moderate'
         };
-      });
-
-      // Decision patterns
-      Object.keys(decisionSuccess).forEach(key => {
-        const data = decisionSuccess[key];
-        const rate = (data.success / data.total) * 100;
-        if (data.total >= 3) { // Only consider decisions made multiple times
-          insights.decisionPatterns[key] = {
-            successRate: rate,
-            total: data.total,
-            recommendation: rate >= 70 ? 'preferred' : rate <= 30 ? 'avoid' : 'neutral'
-          };
-        }
       });
 
       // Generate recommendations
@@ -191,6 +178,35 @@ class PatternLearningSystem {
   }
 
   /**
+   * Find similar successful attacks using semantic search
+   * Helps identify what worked before for similar scenarios
+   */
+  async findSimilarSuccessfulAttacks(currentAttackPattern, nResults = 5) {
+    if (!this.connected) await this.connect();
+
+    try {
+      const queryText = chromaClient.attackToEmbeddingText(currentAttackPattern);
+      
+      const results = await chromaClient.querySimilarAttacks(queryText, nResults * 2, {
+        success: 'true'
+      });
+
+      if (!results.metadatas || results.metadatas[0]?.length === 0) {
+        return [];
+      }
+
+      return results.metadatas[0].slice(0, nResults).map((metadata, idx) => ({
+        ...metadata,
+        similarity: 1 - (results.distances?.[0]?.[idx] || 0),
+        document: results.documents?.[0]?.[idx]
+      }));
+    } catch (error) {
+      console.error('❌ Error finding similar attacks:', error);
+      return [];
+    }
+  }
+
+  /**
    * Get learned strategy recommendations based on patterns
    */
   async getStrategyRecommendations() {
@@ -208,14 +224,14 @@ class PatternLearningSystem {
       avoidTargets: Object.keys(patterns.targetPatterns)
         .filter(t => patterns.targetPatterns[t].recommendation === 'avoid')
         .slice(0, 3),
-      decisionPreferences: Object.keys(patterns.decisionPatterns)
+      decisionPreferences: patterns.decisionPatterns ? Object.keys(patterns.decisionPatterns)
         .filter(k => patterns.decisionPatterns[k].recommendation === 'preferred')
         .reduce((acc, key) => {
           const [triggerId, option] = key.split(':');
           if (!acc[triggerId]) acc[triggerId] = [];
           acc[triggerId].push(option);
           return acc;
-        }, {})
+        }, {}) : {}
     };
 
     return {
@@ -226,15 +242,83 @@ class PatternLearningSystem {
   }
 
   /**
+   * Use semantic search to recommend next steps based on similar past attacks
+   */
+  async getSemanticRecommendations(currentState) {
+    if (!this.connected) await this.connect();
+
+    try {
+      // Find attacks similar to current state
+      const similarAttacks = await this.findSimilarSuccessfulAttacks(currentState, 10);
+      
+      if (similarAttacks.length === 0) {
+        return {
+          recommendations: ['No similar successful patterns found. Trying standard approach.'],
+          confidence: 'low',
+          similarPatterns: []
+        };
+      }
+
+      // Analyze what vectors worked in similar attacks
+      const vectorUsage = {};
+      similarAttacks.forEach(attack => {
+        let vectors = [];
+        try {
+          vectors = JSON.parse(attack.vectors || '[]');
+        } catch (e) {
+          vectors = [];
+        }
+        vectors.forEach(v => {
+          vectorUsage[v] = (vectorUsage[v] || 0) + 1;
+        });
+      });
+
+      const recommendations = [];
+      const sortedVectors = Object.entries(vectorUsage)
+        .sort((a, b) => b[1] - a[1]);
+
+      if (sortedVectors.length > 0) {
+        recommendations.push(`🎯 Most effective vectors in similar scenarios: ${sortedVectors.slice(0, 3).map(([v]) => v).join(', ')}`);
+      }
+
+      // Analyze financial impact patterns
+      const avgImpact = similarAttacks.reduce((sum, a) => sum + (parseInt(a.financial_impact) || 0), 0) / similarAttacks.length;
+      if (avgImpact > 0) {
+        recommendations.push(`💰 Average financial impact in similar attacks: $${avgImpact.toFixed(0)}`);
+      }
+
+      return {
+        recommendations,
+        confidence: similarAttacks.length >= 5 ? 'high' : 'medium',
+        similarPatterns: similarAttacks.slice(0, 5)
+      };
+    } catch (error) {
+      console.error('❌ Error getting semantic recommendations:', error);
+      return {
+        recommendations: ['Error analyzing patterns'],
+        confidence: 'low',
+        similarPatterns: []
+      };
+    }
+  }
+
+  /**
    * Export full analysis report
    */
   async generateReport(hours = 24) {
     const patterns = await this.analyzePatterns(hours);
     const strategy = await this.getStrategyRecommendations();
+    const stats = await chromaClient.getCollectionStats();
 
     return {
       generatedAt: new Date().toISOString(),
       analysisPeriod: `${hours} hours`,
+      vectorDatabase: {
+        type: 'ChromaDB',
+        collection: stats.collectionName,
+        totalDocuments: stats.documentCount,
+        connected: stats.connected
+      },
       summary: {
         totalAttacks: patterns.totalAttacks,
         successRate: patterns.successRate.toFixed(2) + '%',
@@ -249,4 +333,3 @@ class PatternLearningSystem {
 }
 
 module.exports = PatternLearningSystem;
-
