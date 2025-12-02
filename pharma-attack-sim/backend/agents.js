@@ -2,7 +2,7 @@
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 const { calculateTierBypass } = require('./auth-tiers');
 const { analyzeAndSuggest, updateAttackState, getAttackState } = require('./llm-suggestions');
-const { evaluatePhishingWithLLMs, fallbackClickRate } = require('./llm-providers');
+const { evaluatePhishingWithLLMs, roleplayVictimPhishingResponse, fallbackClickRate } = require('./llm-providers');
 
 // Metrics tracker reference (set by server)
 let metricsTracker = null;
@@ -103,7 +103,7 @@ async function OrchestratorAgent(attackId, attackConfig, io, db, config, log) {
   return { success: true, probability: overallProbability };
 }
 
-// Phishing Agent - Tests message across LLMs, applies calibration, Monte Carlo simulation
+// Phishing Agent - Uses MiniMax M2 to roleplay as victim, evaluates phishing attempt based on victim context
 async function PhishingAgent(attackId, attackConfig, io, db, config, log) {
   log(attackId, 'Phishing', '🎣 Initializing phishing campaign...', io, db);
   io.emit('step:started', { attackId, step: 'phishing' });
@@ -238,13 +238,14 @@ async function PhishingAgent(attackId, attackConfig, io, db, config, log) {
     log(attackId, 'Phishing', `🔧 Applying calibration: (${(baseSuccessRate * 100).toFixed(0)}% config × ${configWeight}) + (${(rawCTR * 100).toFixed(0)}% LLM × ${llmWeight}) = ${(calibratedRate * 100).toFixed(0)}%`, io, db);
   }
 
-  // Update metrics for ChromaDB (now that calibratedRate is defined)
+  // Update metrics for ChromaDB (will be updated with roleplay result later)
   if (metricsTracker) {
     metricsTracker.updateAttackMetrics(attackId, {
       phishing: {
         message: phishingMessage,
         llm_evaluations: llmTests,
-        click_rate_prediction: calibratedRate
+        click_rate_prediction: calibratedRate,
+        roleplay_method: 'minimax_m2'
       }
     });
   }
@@ -258,22 +259,91 @@ async function PhishingAgent(attackId, attackConfig, io, db, config, log) {
     path: ['RECON', 'OSINT', 'TARGET_ANALYSIS', 'WEAPONIZE', 'PHISHING']
   });
   
-  // Monte Carlo simulation
-  log(attackId, 'Phishing', '🎲 Running Monte Carlo simulation...', io, db);
+  // LLM Roleplay: Have Grok 4.1 Fast roleplay as the victim
+  log(attackId, 'Phishing', '🎭 Roleplaying as victim with Grok 4.1 Fast...', io, db);
   await sleep(800);
   
-  const random = Math.random();
-  const success = random < calibratedRate;
+  // Get victim context from attack config
+  // Calculate vulnerability score from base success rate
+  const vulnerabilityScore = Math.round(baseSuccessRate * 100);
+  
+  // Determine current context (time of day, stress level, etc.)
+  const currentHour = new Date().getHours();
+  const currentTime = currentHour < 12 ? 'morning' : currentHour < 17 ? 'afternoon' : 'evening';
+  const recentAlerts = (state.failedSteps || []).length;
+  const stressLevel = recentAlerts > 2 || retryCount > 1 ? 'high' : 'normal';
+  
+  const victimContext = {
+    targetDriver,
+    baseSuccessRate,
+    persona: attackConfig.persona || 'standard',
+    vulnerabilityScore,
+    attackDay,
+    retryCount,
+    currentTime,
+    stressLevel,
+    recentAlerts
+  };
+  
+  let roleplayResult;
+  try {
+    roleplayResult = await roleplayVictimPhishingResponse({
+      phishingMessage,
+      victimContext,
+      config
+    });
+    
+    log(attackId, 'Phishing', `🎭 Victim roleplay result: ${roleplayResult.action}`, io, db);
+    log(attackId, 'Phishing', `   Reasoning: ${roleplayResult.reasoning}`, io, db);
+    if (roleplayResult.confidence !== null) {
+      log(attackId, 'Phishing', `   Confidence: ${roleplayResult.confidence}%`, io, db);
+    }
+    
+    // Emit the roleplay response to frontend
+    io.emit('llm:transcript', {
+      attackId,
+      prompt: `Roleplay as ${targetDriver} receiving: ${phishingMessage}`,
+      entries: [{
+        model: roleplayResult.model,
+        provider: roleplayResult.provider,
+        prompt: `Roleplay as victim: ${targetDriver}`,
+        response: `ACTION: ${roleplayResult.action}\nREASONING: ${roleplayResult.reasoning}\nCONFIDENCE: ${roleplayResult.confidence || 'N/A'}%`,
+        simulated: !!roleplayResult.error,
+        timestamp: new Date().toISOString()
+      }]
+    });
+    
+  } catch (error) {
+    log(attackId, 'Phishing', `⚠️ Victim roleplay error: ${error.message}`, io, db);
+    // Fallback to calibrated rate decision
+    roleplayResult = {
+      clicked: Math.random() < calibratedRate,
+      action: 'FALLBACK',
+      reasoning: `Fallback decision due to error: ${error.message}`,
+      confidence: Math.round(calibratedRate * 100),
+      successProbability: calibratedRate,
+      error: error.message
+    };
+  }
+  
+  // Determine success based on roleplay result
+  // The victim's decision is final - if they ignore, we cannot harvest credentials
+  // Only if they click can we successfully harvest credentials
+  const success = roleplayResult.clicked === true;
+  
+  // Calculate final success rate for metrics/logging
+  const roleplaySuccessRate = roleplayResult.successProbability || calibratedRate;
+  const finalSuccessRate = success ? roleplaySuccessRate : 0;
   
   if (success) {
-    log(attackId, 'Phishing', `✅ SUCCESS: Driver clicked link (random: ${(random * 100).toFixed(1)}% < ${(calibratedRate * 100).toFixed(0)}%)`, io, db);
+    log(attackId, 'Phishing', `✅ SUCCESS: Victim clicked the link (roleplay success rate: ${(roleplaySuccessRate * 100).toFixed(0)}%)`, io, db);
     log(attackId, 'Phishing', '🔑 Credentials harvested successfully', io, db);
     
-    // Emit AI reasoning
+    // Emit AI reasoning with roleplay context
     io.emit('ai:reasoning', {
       attackId,
       agent: 'Phishing',
-      message: `Successfully harvested credentials. Click rate: ${(calibratedRate * 100).toFixed(0)}%`,
+      message: `Successfully harvested credentials. Victim clicked the link based on: ${roleplayResult.reasoning || 'roleplay decision'}. Success rate: ${(finalSuccessRate * 100).toFixed(0)}%`,
       nodeId: 'EXPLOIT_SUCCESS'
     });
     
@@ -310,11 +380,57 @@ async function PhishingAgent(attackId, attackConfig, io, db, config, log) {
       }
     };
     trackImpact(attackId, impactData);
-    trackVectorSuccess(attackId, 'phishing', true, 85);
+    // Effectiveness based on roleplay confidence or final success rate
+    const effectiveness = roleplayResult.confidence !== null 
+      ? roleplayResult.confidence 
+      : Math.round(finalSuccessRate * 100);
+    trackVectorSuccess(attackId, 'phishing', true, effectiveness);
+    
+    // Update metrics with roleplay result
+    if (metricsTracker) {
+      const currentMetrics = metricsTracker.getAttackMetrics(attackId);
+      metricsTracker.updateAttackMetrics(attackId, {
+        phishing: {
+          ...(currentMetrics?.phishing || {}),
+          roleplay_result: {
+            clicked: roleplayResult.clicked,
+            action: roleplayResult.action,
+            confidence: roleplayResult.confidence,
+            reasoning: roleplayResult.reasoning,
+            final_success_rate: finalSuccessRate
+          }
+        }
+      });
+    }
+    
     io.emit('impact:updated', impactData);
   } else {
-    log(attackId, 'Phishing', `❌ FAILED: Driver ignored message (random: ${(random * 100).toFixed(1)}% >= ${(calibratedRate * 100).toFixed(0)}%)`, io, db);
+    log(attackId, 'Phishing', `❌ FAILED: Victim ignored the message`, io, db);
+    if (roleplayResult.reasoning) {
+      log(attackId, 'Phishing', `   Victim reasoning: ${roleplayResult.reasoning}`, io, db);
+    }
+    if (roleplayResult.confidence !== null) {
+      log(attackId, 'Phishing', `   Victim confidence in ignoring: ${roleplayResult.confidence}%`, io, db);
+    }
     trackVectorSuccess(attackId, 'phishing', false, 0);
+    
+    // Update metrics with roleplay result even on failure
+    if (metricsTracker) {
+      const currentMetrics = metricsTracker.getAttackMetrics(attackId);
+      metricsTracker.updateAttackMetrics(attackId, {
+        phishing: {
+          ...(currentMetrics?.phishing || {}),
+          roleplay_result: {
+            clicked: roleplayResult.clicked,
+            action: roleplayResult.action,
+            confidence: roleplayResult.confidence,
+            reasoning: roleplayResult.reasoning,
+            final_success_rate: finalSuccessRate
+          }
+        }
+      });
+    }
+    
     io.emit('graph:update', {
       attackId,
       currentNode: 'EXPLOIT_FAIL',
@@ -329,7 +445,7 @@ async function PhishingAgent(attackId, attackConfig, io, db, config, log) {
     // Generate suggestions (will create HIL request for retry)
     analyzeAndSuggest(attackId, 'phishing', false, io, log, db);
     
-    return { success: false, clickRate: calibratedRate };
+    return { success: false, clickRate: finalSuccessRate, roleplayResult };
   }
   
   // Success path
@@ -342,7 +458,7 @@ async function PhishingAgent(attackId, attackConfig, io, db, config, log) {
   });
   analyzeAndSuggest(attackId, 'phishing', true, io, log, db);
   
-  return { success: true, clickRate: calibratedRate };
+  return { success: true, clickRate: finalSuccessRate, roleplayResult };
 }
 
 // GPS Agent - Spoofs coordinates and diverts driver
