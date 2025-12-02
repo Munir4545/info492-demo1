@@ -56,6 +56,11 @@ class AttackConfigPrompt {
   }
 
   createInterface() {
+    // Only create readline interface if stdin is a TTY (interactive terminal)
+    if (!process.stdin.isTTY) {
+      throw new Error('Cannot create interactive prompt: stdin is not a TTY. Use API or provide config via request body.');
+    }
+    
     this.rl = readline.createInterface({
       input: process.stdin,
       output: process.stdout
@@ -280,6 +285,15 @@ class AttackConfigPrompt {
    * Main prompt flow - returns the attack configuration
    */
   async prompt() {
+    // Check if we can actually prompt (stdin must be a TTY)
+    if (!process.stdin.isTTY) {
+      console.log('\n⚠️  Cannot prompt for configuration: stdin is not interactive.');
+      console.log('   Using default configuration.');
+      console.log('   To configure, use: POST /api/attack-config');
+      console.log('   Or run: node scripts/configure-attack.js\n');
+      return AttackConfigPrompt.getDefaults();
+    }
+    
     this.createInterface();
     
     try {

@@ -406,8 +406,8 @@ const autoRunner = (() => {
       return { started: false, message: 'Auto runner already active' };
     }
     
-    // Prompt for configuration if not skipped
-    if (!skipPrompt && !presetConfig) {
+    // Prompt for configuration if not skipped and stdin is interactive
+    if (!skipPrompt && !presetConfig && process.stdin.isTTY) {
       console.log('\n[AUTONOMY] Preparing to start autonomous attack runner...');
       const prompter = new AttackConfigPrompt();
       try {
@@ -423,8 +423,16 @@ const autoRunner = (() => {
       runtimeAttackConfig = presetConfig;
       console.log('[AUTONOMY] Using preset configuration.');
     } else {
-      sessionConfig = runtimeAttackConfig;
-      console.log('[AUTONOMY] Using cached configuration.');
+      // Use cached config or defaults if no TTY available
+      if (!process.stdin.isTTY && !skipPrompt) {
+        console.log('[AUTONOMY] Non-interactive mode detected. Using default configuration.');
+        console.log('[AUTONOMY] To configure, use: POST /api/attack-config or run: node scripts/configure-attack.js');
+        sessionConfig = AttackConfigPrompt.getDefaults();
+        runtimeAttackConfig = sessionConfig;
+      } else {
+        sessionConfig = runtimeAttackConfig;
+        console.log('[AUTONOMY] Using cached configuration.');
+      }
     }
     
     active = true;
@@ -1453,6 +1461,12 @@ server.listen(PORT, () => {
    http://localhost:${PORT}
    WebSocket ready
    Environment: ${process.env.NODE_ENV || 'development'}
+   
+📋 Attack Configuration:
+   • Configure via API: POST /api/attack-config
+   • Interactive prompt: node scripts/configure-attack.js
+   • Start attack: POST /api/autonomous/start
+   • Current config: GET /api/attack-config
   `);
 });
 
