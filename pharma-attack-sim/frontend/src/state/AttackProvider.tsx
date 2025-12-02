@@ -20,6 +20,7 @@ import {
   AttackHistory,
   DeliveryStatus,
 } from '../types/simulation';
+import type { AttackConfig, RiskToleranceConfig, TargetingConfig } from '../components/modals/AttackConfigModal';
 import {
   syntheticDeliveries,
   attackVectors as baseVectors,
@@ -610,6 +611,8 @@ interface AttackContextValue extends AttackState {
   setLiveIntensity: (level: 'low' | 'medium' | 'high') => void;
   triggerManualCascade: () => boolean;
   backendStream: BackendStreamState;
+  attackConfig: AttackConfig | null;
+  setAttackConfig: (config: AttackConfig) => void;
 }
 
 const AttackContext = createContext<AttackContextValue | undefined>(undefined);
@@ -624,6 +627,11 @@ export const AttackProvider = ({ children }: { children: ReactNode }) => {
   const [backendStatus, setBackendStatus] = useState<BackendStatus>('idle');
   const [backendEvents, setBackendEvents] = useState<BackendEventLog[]>([]);
   const [backendSnapshots, setBackendSnapshots] = useState<BackendSnapshot[]>([]);
+  const [attackConfig, setAttackConfigState] = useState<AttackConfig | null>(null);
+
+  const setAttackConfig = useCallback((config: AttackConfig) => {
+    setAttackConfigState(config);
+  }, []);
 
   const {
     messages: backendMessages,
@@ -702,7 +710,7 @@ export const AttackProvider = ({ children }: { children: ReactNode }) => {
   }, [backendAttackPaused]);
 
   const launchBackendRun = useCallback(
-    async (driver: DriverProfile | undefined, selectedVectorsData: AttackVector[], intensity: 'low' | 'medium' | 'high') => {
+    async (driver: DriverProfile | undefined, selectedVectorsData: AttackVector[], intensity: 'low' | 'medium' | 'high', config: AttackConfig | null) => {
       try {
         setBackendStatus('starting');
         const averageSuccessRate =
@@ -718,7 +726,10 @@ export const AttackProvider = ({ children }: { children: ReactNode }) => {
           intensity,
           vectorPlan: selectedVectorsData.map((vector) => vector.id),
           persona: driver?.persona ?? null,
-          day: 1
+          day: 1,
+          // Include risk tolerance and targeting configuration
+          riskTolerance: config?.riskTolerance ?? null,
+          targeting: config?.targeting ?? null
         };
 
         const createResponse = await api.post('/attacks/create', { config: backendConfig });
@@ -730,6 +741,18 @@ export const AttackProvider = ({ children }: { children: ReactNode }) => {
         setBackendAttackId(newAttackId);
         setBackendEvents([]);
         setBackendSnapshots([]);
+
+        // Log the configuration to the transcript
+        if (config) {
+          dispatch({
+            type: 'appendTranscript',
+            payload: {
+              timestamp: new Date().toISOString(),
+              agent: 'CONFIG',
+              content: `Attack configured: ${config.riskTolerance.posture.toUpperCase()} posture, ${config.targeting.strategy} targeting, ${(config.riskTolerance.detectionRiskThreshold * 100).toFixed(0)}% detection threshold`
+            }
+          });
+        }
 
         await api.post(`/attacks/${newAttackId}/start`);
         setBackendStatus('running');
@@ -777,7 +800,7 @@ export const AttackProvider = ({ children }: { children: ReactNode }) => {
       dispatch({ type: 'tick' });
     }, TICK_INTERVAL_MS);
 
-    void launchBackendRun(driver, selectedVectorsData, state.control.intensity);
+    void launchBackendRun(driver, selectedVectorsData, state.control.intensity, attackConfig);
 
     return true;
   };
@@ -1044,9 +1067,11 @@ export const AttackProvider = ({ children }: { children: ReactNode }) => {
       resumeAttack,
       setLiveIntensity,
       triggerManualCascade,
-      backendStream
+      backendStream,
+      attackConfig,
+      setAttackConfig
     }),
-    [state, backendStream]
+    [state, backendStream, attackConfig, setAttackConfig]
   );
 
   return <AttackContext.Provider value={value}>{children}</AttackContext.Provider>;

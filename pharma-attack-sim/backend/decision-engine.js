@@ -8,6 +8,28 @@ const DEFAULT_TOTAL_MINUTES = 24 * 60;
 const DEFAULT_SNAPSHOT_INTERVAL = 30;
 const SYNTHETIC_REFRESH_INTERVAL = 5; // simulation minutes
 
+// Default risk tolerance settings (can be overridden via attackConfig)
+const DEFAULT_RISK_TOLERANCE = {
+  posture: 'balanced', // 'stealth', 'balanced', 'aggressive', 'blitz'
+  detectionRiskThreshold: 0.65,
+  holdAttackThreshold: 0.85,
+  baseDetectionRisk: 0.20,
+  alertPenaltyMultiplier: 0.12,
+  failedVectorPenalty: { api: 0.10, gps: 0.08 },
+  stealthPriority: 0.5,
+  cascadeBonus: 0.15
+};
+
+// Default targeting settings (can be overridden via attackConfig)
+const DEFAULT_TARGETING = {
+  strategy: 'opportunistic', // 'opportunistic', 'round-robin', 'persistent', 'fresh'
+  preferredTier: 'tier2',
+  avoidRecentlyDetected: true,
+  vigilanceThreshold: 0.30,
+  susceptibilityMinimum: 0.40,
+  randomizationFactor: 0.10
+};
+
 const VECTOR_AGENT_MAP = {
   orchestrator: 'orchestrator',
   phishing: 'phishing',
@@ -50,9 +72,24 @@ function start(attackId, attackConfig, options = {}) {
     return;
   }
 
+  // Merge runtime config with defaults
+  const riskTolerance = {
+    ...DEFAULT_RISK_TOLERANCE,
+    ...(context.config?.riskTolerance || {}),
+    ...(attackConfig?.riskTolerance || {})
+  };
+
+  const targeting = {
+    ...DEFAULT_TARGETING,
+    ...(context.config?.targeting || {}),
+    ...(attackConfig?.targeting || {})
+  };
+
   const loopState = {
     attackId,
     attackConfig,
+    riskTolerance,
+    targeting,
     simMinute: 0,
     totalSimMinutes: options.totalSimMinutes || DEFAULT_TOTAL_MINUTES,
     simMinuteMs: options.simMinuteDurationMs || DEFAULT_SIM_MINUTE_MS,
@@ -125,7 +162,7 @@ async function tick(loopState, isInitial) {
       }
     });
 
-    emitDecisionEvaluation(loopState.attackId, loopState.simMinute, evaluation);
+    emitDecisionEvaluation(loopState.attackId, loopState.simMinute, evaluation, loopState);
 
     const snapshotDue = isInitial || loopState.simMinute % loopState.snapshotInterval === 0;
     if (snapshotDue) {
@@ -149,6 +186,7 @@ async function tick(loopState, isInitial) {
 async function evaluateState(loopState) {
   const attackState = getAttackState(loopState.attackId);
   const metrics = context.metricsTracker?.getAttackMetrics(loopState.attackId) || {};
+  const riskTolerance = loopState.riskTolerance || DEFAULT_RISK_TOLERANCE;
 
   const syntheticState = await getSyntheticState(loopState);
 
@@ -168,12 +206,15 @@ async function evaluateState(loopState) {
     : 0;
 
   const detectionAlerts = (attackState.failedSteps || []).length;
+  
+  // Use configurable risk tolerance values
+  const failedVectorPenalty = riskTolerance.failedVectorPenalty || DEFAULT_RISK_TOLERANCE.failedVectorPenalty;
   const detectionRisk = Math.min(
     1,
-    0.2 +
-      detectionAlerts * 0.12 +
-      (metrics.api?.attempted && !metrics.api?.success ? 0.1 : 0) +
-      (metrics.gps?.attempted && !metrics.gps?.success ? 0.08 : 0)
+    riskTolerance.baseDetectionRisk +
+      detectionAlerts * riskTolerance.alertPenaltyMultiplier +
+      (metrics.api?.attempted && !metrics.api?.success ? failedVectorPenalty.api : 0) +
+      (metrics.gps?.attempted && !metrics.gps?.success ? failedVectorPenalty.gps : 0)
   );
 
   const activeDeliveries = syntheticState?.activeDeliveries ?? 0;
@@ -188,11 +229,35 @@ async function evaluateState(loopState) {
   );
 
   const compromiseGap = Math.max(0, TARGET_COMPROMISE_RATE - compromiseRate);
+  
+  // Apply posture-based aggressiveness modifiers
+  let postureModifier = 0;
+  switch (riskTolerance.posture) {
+    case 'stealth':
+      postureModifier = -0.3; // Much more cautious
+      break;
+    case 'aggressive':
+      postureModifier = 0.2; // Push harder
+      break;
+    case 'blitz':
+      postureModifier = 0.4; // Maximum aggression
+      break;
+    default: // 'balanced'
+      postureModifier = 0;
+  }
+
+  const cascadeBonus = riskTolerance.cascadeBonus || DEFAULT_RISK_TOLERANCE.cascadeBonus;
+  const stealthFactor = riskTolerance.stealthPriority || DEFAULT_RISK_TOLERANCE.stealthPriority;
+  
   const aggressiveness = Math.min(
     1,
     Math.max(
       0,
-      compromiseGap * 2 + (1 - timeRemainingRatio) * 0.5 - detectionRisk * 0.4 + (cascadeOpportunity ? 0.15 : 0)
+      compromiseGap * 2 + 
+      (1 - timeRemainingRatio) * 0.5 - 
+      detectionRisk * stealthFactor - 
+      (cascadeOpportunity ? cascadeBonus : 0) +
+      postureModifier
     )
   );
 
@@ -200,7 +265,8 @@ async function evaluateState(loopState) {
     attackState,
     detectionRisk,
     aggressiveness,
-    cascadeOpportunity
+    cascadeOpportunity,
+    riskTolerance
   });
 
   const averagePatientHealth = computeAveragePatientHealth(compromiseRate, detectionAlerts);
@@ -230,7 +296,9 @@ async function evaluateState(loopState) {
   };
 }
 
-function selectVector({ attackState, detectionRisk, aggressiveness, cascadeOpportunity }) {
+function selectVector({ attackState, detectionRisk, aggressiveness, cascadeOpportunity, riskTolerance }) {
+  const threshold = riskTolerance?.detectionRiskThreshold ?? DEFAULT_RISK_TOLERANCE.detectionRiskThreshold;
+  
   if (!attackState.completedSteps.includes('orchestrator')) {
     return 'orchestrator';
   }
@@ -238,11 +306,20 @@ function selectVector({ attackState, detectionRisk, aggressiveness, cascadeOppor
     return 'phishing';
   }
 
-  if (cascadeOpportunity && detectionRisk < 0.65) {
+  // Use configurable detection risk threshold
+  if (cascadeOpportunity && detectionRisk < threshold) {
     return 'gps';
   }
 
-  if (aggressiveness > 0.6) {
+  // Adjust aggressiveness threshold based on posture
+  let aggressivenessThreshold = 0.6;
+  if (riskTolerance?.posture === 'stealth') {
+    aggressivenessThreshold = 0.8; // Require higher aggressiveness to switch to API
+  } else if (riskTolerance?.posture === 'aggressive' || riskTolerance?.posture === 'blitz') {
+    aggressivenessThreshold = 0.4; // Lower threshold, more willing to use API
+  }
+
+  if (aggressiveness > aggressivenessThreshold) {
     return 'api';
   }
 
@@ -302,6 +379,8 @@ function shouldQueueVector(loopState, evaluation) {
   if (!context.humanOversight) return false;
   if (loopState.pendingVectors.has(evaluation.vector)) return false;
 
+  const riskTolerance = loopState.riskTolerance || DEFAULT_RISK_TOLERANCE;
+
   // Avoid repeated recommendations unless enough simulated time has passed
   if (
     loopState.lastDecision &&
@@ -311,9 +390,14 @@ function shouldQueueVector(loopState, evaluation) {
     return false;
   }
 
-  // If detection risk is extremely high and we still have time, hold
-  if (evaluation.detectionRisk > 0.85 && evaluation.timeRemainingRatio > 0.2) {
-    return false;
+  // Use configurable hold attack threshold
+  // If detection risk is extremely high and we still have time, hold (unless blitz mode)
+  const holdThreshold = riskTolerance.holdAttackThreshold ?? DEFAULT_RISK_TOLERANCE.holdAttackThreshold;
+  
+  if (riskTolerance.posture !== 'blitz') {
+    if (evaluation.detectionRisk > holdThreshold && evaluation.timeRemainingRatio > 0.2) {
+      return false;
+    }
   }
 
   return true;
@@ -321,13 +405,19 @@ function shouldQueueVector(loopState, evaluation) {
 
 function queueVectorAction(loopState, evaluation) {
   const vector = evaluation.vector;
-  const severity = evaluation.detectionRisk > 0.65 ? 'medium' : 'high';
+  const riskTolerance = loopState.riskTolerance || DEFAULT_RISK_TOLERANCE;
+  const detectionThreshold = riskTolerance.detectionRiskThreshold ?? DEFAULT_RISK_TOLERANCE.detectionRiskThreshold;
+  
+  const severity = evaluation.detectionRisk > detectionThreshold ? 'medium' : 'high';
   const title = `Autonomous Decision: ${VECTOR_LABELS[vector] || vector}`;
-  const description = `${evaluation.reason} Compromise gap ${(TARGET_COMPROMISE_RATE - evaluation.compromiseRate).toFixed(2)} remaining.`;
+  const postureLabel = riskTolerance.posture ? ` [${riskTolerance.posture.toUpperCase()}]` : '';
+  const description = `${evaluation.reason} Compromise gap ${(TARGET_COMPROMISE_RATE - evaluation.compromiseRate).toFixed(2)} remaining.${postureLabel}`;
 
   const metadata = {
     evaluation,
-    targetCompromiseRate: TARGET_COMPROMISE_RATE
+    targetCompromiseRate: TARGET_COMPROMISE_RATE,
+    riskTolerance,
+    targeting: loopState.targeting
   };
 
   const actionRecord = context.humanOversight.enqueueAction({
@@ -504,7 +594,10 @@ function recordStateSnapshot(attackId, simMinute, evaluation, isTerminal = false
   }
 }
 
-function emitDecisionEvaluation(attackId, simMinute, evaluation) {
+function emitDecisionEvaluation(attackId, simMinute, evaluation, loopState) {
+  const riskTolerance = loopState?.riskTolerance || DEFAULT_RISK_TOLERANCE;
+  const targeting = loopState?.targeting || DEFAULT_TARGETING;
+  
   context.io?.emit('decision:evaluation', {
     attackId,
     simMinute,
@@ -514,7 +607,14 @@ function emitDecisionEvaluation(attackId, simMinute, evaluation) {
     cascadeOpportunity: evaluation.cascadeOpportunity,
     aggressiveness: evaluation.aggressiveness,
     averagePatientHealth: evaluation.averagePatientHealth,
-    reason: evaluation.reason
+    reason: evaluation.reason,
+    config: {
+      posture: riskTolerance.posture,
+      detectionRiskThreshold: riskTolerance.detectionRiskThreshold,
+      holdAttackThreshold: riskTolerance.holdAttackThreshold,
+      targetingStrategy: targeting.strategy,
+      preferredTier: targeting.preferredTier
+    }
   });
 }
 

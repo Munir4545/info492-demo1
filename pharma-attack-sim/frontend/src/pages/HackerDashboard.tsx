@@ -6,6 +6,7 @@ import LLMConsole from '../components/console/LLMConsole';
 import InterventionQueue from '../components/console/InterventionQueue';
 import DecisionEnginePanel from '../components/console/DecisionEnginePanel';
 import DeployModal from '../components/modals/DeployModal';
+import AttackConfigModal, { AttackConfig } from '../components/modals/AttackConfigModal';
 import {
   ResponsiveContainer,
   AreaChart,
@@ -55,9 +56,12 @@ const HackerDashboard = () => {
     startAttack,
     history,
     exportLatestReport,
-    backendStream
+    backendStream,
+    setAttackConfig
   } = useAttackContext();
   const [mode, setMode] = useState<Mode>('deploy');
+  const [configModalOpen, setConfigModalOpen] = useState(false);
+  const [attackConfig, setLocalAttackConfig] = useState<AttackConfig | null>(null);
 
   const selectedVectors = attackVectors.filter((vector) => control.selectedVectors.includes(vector.id));
   const selectedDriver = driverProfiles.find((profile) => profile.id === control.selectedDriver);
@@ -68,10 +72,31 @@ const HackerDashboard = () => {
 
   const handleDeploy = () => {
     if (deployDisabled) return;
+    // First open the config modal
+    setConfigModalOpen(true);
+  };
+
+  const handleConfigConfirm = (config: AttackConfig) => {
+    setLocalAttackConfig(config);
+    setConfigModalOpen(false);
+    // Now open the deploy modal with the config
     setDeployModalOpen(true);
   };
 
+  const handleConfigCancel = () => {
+    setConfigModalOpen(false);
+  };
+
+  const handleEditConfig = () => {
+    setDeployModalOpen(false);
+    setConfigModalOpen(true);
+  };
+
   const handleConfirmDeploy = () => {
+    // Pass the config to the attack context
+    if (attackConfig) {
+      setAttackConfig(attackConfig);
+    }
     const started = startAttack();
     if (started) {
       setMode('monitor');
@@ -296,13 +321,21 @@ const HackerDashboard = () => {
         )}
       </main>
 
+      <AttackConfigModal
+        open={configModalOpen}
+        onConfirm={handleConfigConfirm}
+        onCancel={handleConfigCancel}
+      />
+
       <DeployModal
         open={control.deployModalOpen}
         vectors={selectedVectors}
         driver={selectedDriver}
         intensity={control.intensity}
+        attackConfig={attackConfig}
         onConfirm={handleConfirmDeploy}
         onCancel={() => setDeployModalOpen(false)}
+        onEditConfig={handleEditConfig}
       />
     </div>
   );

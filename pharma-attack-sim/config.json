@@ -5,6 +5,27 @@
     "timing": "11:45 AM",
     "day": 1
   },
+  "riskTolerance": {
+    "posture": "balanced",
+    "detectionRiskThreshold": 0.65,
+    "holdAttackThreshold": 0.85,
+    "baseDetectionRisk": 0.20,
+    "alertPenaltyMultiplier": 0.12,
+    "failedVectorPenalty": {
+      "api": 0.10,
+      "gps": 0.08
+    },
+    "stealthPriority": 0.5,
+    "cascadeBonus": 0.15
+  },
+  "targeting": {
+    "strategy": "opportunistic",
+    "preferredTier": "tier2",
+    "avoidRecentlyDetected": true,
+    "vigilanceThreshold": 0.30,
+    "susceptibilityMinimum": 0.40,
+    "randomizationFactor": 0.10
+  },
   "agents": {
     "phishing": {
       "calibrationFactor": 0.40,

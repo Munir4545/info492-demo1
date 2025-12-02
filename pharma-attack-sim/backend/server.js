@@ -32,6 +32,10 @@ const SyntheticClient = require('./synthetic-client');
 const chromaClient = require('./chroma-client');
 const AttackLog = require('./models/AttackLog');
 const PatternLearningSystem = require('./pattern-learning');
+const AttackConfigPrompt = require('./attack-config-prompt');
+
+// Runtime attack configuration (set via console prompt or API)
+let runtimeAttackConfig = AttackConfigPrompt.getDefaults();
 
 const SYNTHETIC_API_BASE = (process.env.SYNTHETIC_API_BASE || 'http://localhost:8007').replace(/\/$/, '');
 const AUTO_LOOP_DELAY_MS = parseInt(process.env.AUTO_LOOP_DELAY_MS || '5000', 10);
@@ -81,12 +85,35 @@ function kickoffAttack(attackId, attackConfig, syntheticClient = null) {
 
   initializeAttackMetrics(attackId);
 
+  // Log attack configuration if present
+  const riskTolerance = attackConfig.riskTolerance || config.riskTolerance;
+  const targeting = attackConfig.targeting || config.targeting;
+  
+  if (riskTolerance || targeting) {
+    const postureLabel = riskTolerance?.posture?.toUpperCase() || 'BALANCED';
+    const strategyLabel = targeting?.strategy || 'opportunistic';
+    const detectionThreshold = riskTolerance?.detectionRiskThreshold 
+      ? `${(riskTolerance.detectionRiskThreshold * 100).toFixed(0)}%`
+      : '65%';
+    
+    console.log(`[CONFIG] Attack ${attackId} configuration:`);
+    console.log(`  - Posture: ${postureLabel}`);
+    console.log(`  - Targeting Strategy: ${strategyLabel}`);
+    console.log(`  - Detection Risk Threshold: ${detectionThreshold}`);
+    console.log(`  - Preferred Tier: ${targeting?.preferredTier || 'tier2'}`);
+    
+    log(attackId, 'CONFIG', 
+      `Attack configured: ${postureLabel} posture, ${strategyLabel} targeting, ${detectionThreshold} detection threshold`, 
+      io, db
+    );
+  }
+
   decisionEngine.start(attackId, attackConfig, {
     totalSimMinutes: SIM_TOTAL_MINUTES,
     simMinuteDurationMs: SIM_MINUTE_MS
   });
 
-  io.emit('attack:started', { attackId });
+  io.emit('attack:started', { attackId, config: { riskTolerance, targeting } });
   console.log(`[AUTONOMY] Attack ${attackId} started for target ${attackConfig.targetDriver || 'Unknown'}`);
 
   agents.setMetricsTracker({ getAttackMetrics, updateAttackMetrics });
@@ -304,6 +331,7 @@ const autoRunner = (() => {
   let cycle = 0;
   let currentAttackId = null;
   let loopPromise = null;
+  let sessionConfig = null; // Configuration for this attack session
 
   async function runLoop() {
     while (active) {
@@ -323,6 +351,13 @@ const autoRunner = (() => {
           console.log(`[AUTONOMY] Received manifest ${manifest.routeId} for driver ${manifest.driver?.displayName || manifest.driver?.name}`);
           const attackConfig = buildAttackConfigFromManifest(manifest);
           attackConfig.syntheticManifest = manifest;
+          
+          // Apply the session configuration (risk tolerance + targeting)
+          if (sessionConfig) {
+            attackConfig.riskTolerance = sessionConfig.riskTolerance;
+            attackConfig.targeting = sessionConfig.targeting;
+          }
+          
           const attackId = createAttackRecord(attackConfig);
           currentAttackId = attackId;
           
@@ -366,18 +401,44 @@ const autoRunner = (() => {
     console.log('[AUTONOMY] Auto attack runner idle.');
   }
 
-  async function start() {
+  async function start(skipPrompt = false, presetConfig = null) {
     if (active) {
       return { started: false, message: 'Auto runner already active' };
     }
+    
+    // Prompt for configuration if not skipped
+    if (!skipPrompt && !presetConfig) {
+      console.log('\n[AUTONOMY] Preparing to start autonomous attack runner...');
+      const prompter = new AttackConfigPrompt();
+      try {
+        sessionConfig = await prompter.prompt();
+        runtimeAttackConfig = sessionConfig;
+      } catch (error) {
+        console.error('[AUTONOMY] Configuration prompt failed:', error.message);
+        console.log('[AUTONOMY] Using default configuration.');
+        sessionConfig = AttackConfigPrompt.getDefaults();
+      }
+    } else if (presetConfig) {
+      sessionConfig = presetConfig;
+      runtimeAttackConfig = presetConfig;
+      console.log('[AUTONOMY] Using preset configuration.');
+    } else {
+      sessionConfig = runtimeAttackConfig;
+      console.log('[AUTONOMY] Using cached configuration.');
+    }
+    
     active = true;
     cycle = 0;
     console.log('[AUTONOMY] Auto attack runner engaged.');
+    console.log(`[AUTONOMY] Posture: ${sessionConfig.riskTolerance.posture.toUpperCase()}`);
+    console.log(`[AUTONOMY] Strategy: ${sessionConfig.targeting.strategy}`);
+    console.log(`[AUTONOMY] Detection Threshold: ${(sessionConfig.riskTolerance.detectionRiskThreshold * 100).toFixed(0)}%`);
+    
     loopPromise = runLoop().catch(error => {
       console.error('[AUTONOMY] Runner crashed:', error);
       active = false;
     });
-    return { started: true };
+    return { started: true, config: sessionConfig };
   }
 
   async function stop() {
@@ -944,9 +1005,23 @@ app.get('/api/config', authenticate, (req, res) => {
 });
 
 app.post('/api/attacks/create', authenticate, (req, res) => {
-  const attackConfig = req.body.config || config.attack;
+  const baseConfig = req.body.config || config.attack;
+  
+  // Merge runtime configuration if not provided in request
+  const attackConfig = {
+    ...baseConfig,
+    riskTolerance: baseConfig.riskTolerance || runtimeAttackConfig.riskTolerance,
+    targeting: baseConfig.targeting || runtimeAttackConfig.targeting
+  };
+  
   const attackId = createAttackRecord(attackConfig);
-  res.json({ attackId });
+  
+  // Log the configuration being used
+  console.log(`[ATTACK] Created attack ${attackId} with config:`);
+  console.log(`  - Posture: ${attackConfig.riskTolerance?.posture || 'balanced'}`);
+  console.log(`  - Strategy: ${attackConfig.targeting?.strategy || 'opportunistic'}`);
+  
+  res.json({ attackId, config: { riskTolerance: attackConfig.riskTolerance, targeting: attackConfig.targeting } });
 });
 
 app.post('/api/attacks/:id/start', authenticate, async (req, res) => {
@@ -960,6 +1035,14 @@ app.post('/api/attacks/:id/start', authenticate, async (req, res) => {
   }
   
   const attackConfig = JSON.parse(attack.config);
+  
+  // Ensure runtime config is applied if not already in stored config
+  if (!attackConfig.riskTolerance) {
+    attackConfig.riskTolerance = runtimeAttackConfig.riskTolerance;
+  }
+  if (!attackConfig.targeting) {
+    attackConfig.targeting = runtimeAttackConfig.targeting;
+  }
   
   kickoffAttack(attackId, attackConfig, null);
   res.json({ success: true, attackId });
@@ -1100,12 +1183,53 @@ app.post('/api/hil/:id/reject', authenticate, (req, res) => {
 });
 
 app.post('/api/autonomous/start', authenticate, async (req, res) => {
-  const result = await autoRunner.start();
+  const { skipPrompt, config } = req.body || {};
+  
+  // If config is provided in the request, use it; otherwise prompt in console
+  let presetConfig = null;
+  if (config) {
+    presetConfig = AttackConfigPrompt.fromOptions(config);
+  }
+  
+  const result = await autoRunner.start(skipPrompt || !!config, presetConfig);
   res.json({
     success: true,
     result,
     status: autoRunner.status()
   });
+});
+
+// Get current attack configuration
+app.get('/api/attack-config', authenticate, (req, res) => {
+  res.json({
+    config: runtimeAttackConfig,
+    defaults: AttackConfigPrompt.getDefaults()
+  });
+});
+
+// Set attack configuration (for frontend or API use)
+app.post('/api/attack-config', authenticate, (req, res) => {
+  const { riskTolerance, targeting } = req.body;
+  
+  if (riskTolerance || targeting) {
+    runtimeAttackConfig = AttackConfigPrompt.fromOptions({ riskTolerance, targeting });
+    
+    console.log('\n[CONFIG] Attack configuration updated via API:');
+    console.log(`  - Posture: ${runtimeAttackConfig.riskTolerance.posture.toUpperCase()}`);
+    console.log(`  - Strategy: ${runtimeAttackConfig.targeting.strategy}`);
+    console.log(`  - Detection Threshold: ${(runtimeAttackConfig.riskTolerance.detectionRiskThreshold * 100).toFixed(0)}%`);
+    console.log(`  - Preferred Tier: ${runtimeAttackConfig.targeting.preferredTier}\n`);
+    
+    res.json({
+      success: true,
+      config: runtimeAttackConfig
+    });
+  } else {
+    res.status(400).json({
+      success: false,
+      error: 'Must provide riskTolerance or targeting configuration'
+    });
+  }
 });
 
 app.post('/api/autonomous/stop', authenticate, async (req, res) => {
