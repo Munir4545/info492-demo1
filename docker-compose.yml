@@ -12,12 +12,6 @@ services:
       - PORT=3001
       - NODE_ENV=production
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/api/attacks', (r) => {process.exit(r.statusCode === 401 ? 0 : 1)})"]
-      interval: 30s
-      timeout: 3s
-      retries: 3
-      start_period: 10s
     volumes:
       - ./pharma-attack-sim/config.json:/config.json:ro
       - pharma-data:/app/data
