@@ -11,6 +11,7 @@ services:
     environment:
       - PORT=3001
       - NODE_ENV=production
+      - SYNTHETIC_API_BASE=http://synthetic-industry-backend:8007
     restart: unless-stopped
     volumes:
       - ./pharma-attack-sim/config.json:/config.json:ro
