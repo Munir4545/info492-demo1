@@ -20,8 +20,14 @@ async function initChroma() {
 
   try {
     // Initialize ChromaDB client with cloud credentials
+    // Ensure URL has protocol
+    let chromaHost = process.env.CHROMA_HOST || 'https://api.trychroma.com';
+    if (!chromaHost.startsWith('http://') && !chromaHost.startsWith('https://')) {
+      chromaHost = `https://${chromaHost}`;
+    }
+    
     client = new ChromaClient({
-      path: process.env.CHROMA_HOST || 'https://api.trychroma.com',
+      path: chromaHost,
       auth: {
         provider: 'token',
         credentials: process.env.CHROMA_API_KEY,
