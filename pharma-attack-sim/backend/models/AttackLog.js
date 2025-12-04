@@ -62,6 +62,7 @@ class AttackLog {
   
   /**
    * Save the attack log to ChromaDB as an embedding
+   * Non-blocking: failures are logged but don't throw
    */
   async save() {
     try {
@@ -69,8 +70,9 @@ class AttackLog {
       await chromaClient.saveAttack(this.attackId, attackData);
       return this;
     } catch (error) {
-      console.error('Failed to save attack log:', error);
-      throw error;
+      // Log but don't throw - ChromaDB failures shouldn't break the attack flow
+      console.warn(`⚠️ ChromaDB save failed for attack ${this.attackId}: ${error.message}`);
+      return this; // Return anyway so the attack continues
     }
   }
   

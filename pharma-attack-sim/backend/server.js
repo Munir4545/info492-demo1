@@ -340,9 +340,10 @@ const autoRunner = (() => {
       try {
         let syntheticClient = null;
         try {
+          console.log(`[AUTONOMY] Connecting to synthetic backend at ${SYNTHETIC_API_BASE}...`);
           syntheticClient = new SyntheticClient(SYNTHETIC_API_BASE);
           await syntheticClient.connect();
-          console.log('[AUTONOMY] Starting synthetic route generation...');
+          console.log('[AUTONOMY] Synthetic client connected. Starting synthetic route generation...');
           await startSyntheticSimulation(24);
           const manifest = await waitForManifest();
           if (!manifest) {
@@ -389,7 +390,8 @@ const autoRunner = (() => {
           }
         }
       } catch (error) {
-        console.error(`[AUTONOMY] Cycle ${cycle} error: ${error.message}`);
+        console.error(`[AUTONOMY] Cycle ${cycle} error:`, error.message);
+        console.error(`[AUTONOMY] Error details:`, error.stack || error);
       } finally {
         currentAttackId = null;
       }
@@ -591,11 +593,13 @@ async function saveAttackToChroma(attackId, attackConfig, status, success, metri
       error: errorMessage ? { message: errorMessage, timestamp: new Date() } : undefined
     });
     
-    // Save as embedding to ChromaDB vector database
-    await attackLog.save();
-    console.log(`✅ Attack ${attackId} saved to ChromaDB as vector embedding`);
+    // Save as embedding to ChromaDB vector database (non-blocking)
+    attackLog.save().catch(err => {
+      console.warn(`⚠️ ChromaDB save failed for attack ${attackId}: ${err.message}`);
+    });
+    console.log(`✅ Attack ${attackId} saved to MongoDB`);
   } catch (error) {
-    console.error(`❌ Failed to save attack ${attackId} to ChromaDB:`, error.message);
+    console.error(`❌ Failed to save attack ${attackId} to MongoDB:`, error.message);
   }
 }
 

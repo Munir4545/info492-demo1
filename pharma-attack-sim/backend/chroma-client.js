@@ -32,13 +32,19 @@ async function initChroma() {
     });
 
     // Get or create the attacks collection
+    // Note: ChromaDB cloud may have dimension requirements
     collection = await client.getOrCreateCollection({
       name: COLLECTION_NAME,
       metadata: {
         description: 'Attack simulation logs with embeddings',
         'hnsw:space': 'cosine'
       }
+      // Don't specify dimension - let ChromaDB infer from first embedding
     });
+    
+    // Log collection info for debugging
+    const count = await collection.count();
+    console.log(`[ChromaDB] Collection '${COLLECTION_NAME}' ready (${count} existing documents)`);
 
     console.log('✅ ChromaDB connected successfully');
     return { client, collection };
@@ -142,37 +148,63 @@ async function saveAttack(attackId, attackData) {
     const embeddingText = attackToEmbeddingText(attackData);
     const embedding = generateSimpleEmbedding(embeddingText);
     
+    // Validate embedding dimensions
+    if (!Array.isArray(embedding) || embedding.length === 0) {
+      throw new Error(`Invalid embedding: expected array, got ${typeof embedding}`);
+    }
+    
     const id = `attack_${attackId}_${Date.now()}`;
+    
+    // Ensure all metadata values are strings/numbers (ChromaDB requirement)
+    // Remove any null/undefined values and ensure proper types
+    const metadata = {
+      attackId: String(attackId),
+      timestamp: new Date().toISOString(),
+      status: String(attackData.status || 'unknown'),
+      success: attackData.success ? 'true' : 'false',
+      targetDriver: String(attackData.config?.targetDriver || 'unknown').substring(0, 100), // Limit length
+      targetTier: String(attackData.config?.targetTier || 'unknown'),
+      vectors: JSON.stringify(attackData.config?.vectorPlan || []).substring(0, 500), // Limit length
+      duration_seconds: Number(attackData.duration_seconds || 0),
+      compromised_deliveries: Number(attackData.compromised_deliveries || 0),
+      affected_patients: Number(attackData.affected_patients || 0),
+      financial_impact: Number(attackData.financial_impact || 0),
+      phishing_success: attackData.phishing?.success ? 'true' : 'false',
+      phishing_effectiveness: Number(attackData.phishing?.effectiveness || 0),
+      gps_success: attackData.gps?.success ? 'true' : 'false',
+      gps_effectiveness: Number(attackData.gps?.effectiveness || 0),
+      api_success: attackData.api?.success ? 'true' : 'false',
+      api_effectiveness: Number(attackData.api?.effectiveness || 0)
+    };
+    
+    // Remove any NaN or Infinity values
+    Object.keys(metadata).forEach(key => {
+      const value = metadata[key];
+      if (typeof value === 'number' && (isNaN(value) || !isFinite(value))) {
+        metadata[key] = 0;
+      }
+    });
+    
+    // Log what we're sending for debugging
+    console.log(`[ChromaDB] Saving attack ${attackId}: embedding dim=${embedding.length}, metadata keys=${Object.keys(metadata).length}`);
     
     await collection.add({
       ids: [id],
       embeddings: [embedding],
-      metadatas: [{
-        attackId: attackId,
-        timestamp: new Date().toISOString(),
-        status: attackData.status,
-        success: attackData.success ? 'true' : 'false',
-        targetDriver: attackData.config?.targetDriver || 'unknown',
-        targetTier: attackData.config?.targetTier || 'unknown',
-        vectors: JSON.stringify(attackData.config?.vectorPlan || []),
-        duration_seconds: attackData.duration_seconds || 0,
-        compromised_deliveries: attackData.compromised_deliveries || 0,
-        affected_patients: attackData.affected_patients || 0,
-        financial_impact: attackData.financial_impact || 0,
-        phishing_success: attackData.phishing?.success ? 'true' : 'false',
-        phishing_effectiveness: attackData.phishing?.effectiveness || 0,
-        gps_success: attackData.gps?.success ? 'true' : 'false',
-        gps_effectiveness: attackData.gps?.effectiveness || 0,
-        api_success: attackData.api?.success ? 'true' : 'false',
-        api_effectiveness: attackData.api?.effectiveness || 0
-      }],
-      documents: [embeddingText]
+      metadatas: [metadata],
+      documents: [embeddingText.substring(0, 10000)] // Limit document length to 10k chars
     });
 
     console.log(`✅ Attack ${attackId} saved to ChromaDB`);
     return id;
   } catch (error) {
     console.error(`❌ Failed to save attack ${attackId} to ChromaDB:`, error.message);
+    console.error(`❌ ChromaDB error details:`, {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+      response: error.response?.data || error.response || 'No response data'
+    });
     throw error;
   }
 }
