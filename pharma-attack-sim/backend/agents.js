@@ -259,8 +259,8 @@ async function PhishingAgent(attackId, attackConfig, io, db, config, log) {
     path: ['RECON', 'OSINT', 'TARGET_ANALYSIS', 'WEAPONIZE', 'PHISHING']
   });
   
-  // LLM Roleplay: Have Grok 4.1 Fast roleplay as the victim
-  log(attackId, 'Phishing', '🎭 Roleplaying as victim with Grok 4.1 Fast...', io, db);
+  // LLM Roleplay: Have DeepSeek R1T2 Chimera roleplay as the victim
+  log(attackId, 'Phishing', '🎭 Roleplaying as victim with DeepSeek R1T2 Chimera...', io, db);
   await sleep(800);
   
   // Get victim context from attack config

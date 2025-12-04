@@ -284,7 +284,7 @@ async function evaluatePhishingWithLLMs({ prompt, config }) {
 
 /**
  * Roleplay as the victim to evaluate phishing attempt
- * Uses Grok 4.1 Fast to simulate the victim's response
+ * Uses DeepSeek R1T2 Chimera to simulate the victim's response
  */
 async function roleplayVictimPhishingResponse({ 
   phishingMessage, 
