@@ -22,20 +22,52 @@ async function initChroma() {
     // Initialize ChromaDB client with cloud credentials
     // Ensure URL has protocol
     let chromaHost = process.env.CHROMA_HOST || 'https://api.trychroma.com';
+    
+    // Remove trailing slashes
+    chromaHost = chromaHost.trim().replace(/\/+$/, '');
+    
+    // Ensure URL has protocol - this is critical for ChromaDB cloud
     if (!chromaHost.startsWith('http://') && !chromaHost.startsWith('https://')) {
       chromaHost = `https://${chromaHost}`;
     }
     
-    client = new ChromaClient({
-      path: chromaHost,
-      auth: {
+    // Parse URL to extract just the origin (protocol + hostname + port)
+    // This ensures we don't include any path components that might confuse the client
+    let chromaUrl;
+    try {
+      const urlObj = new URL(chromaHost);
+      chromaUrl = `${urlObj.protocol}//${urlObj.host}`;
+    } catch (urlError) {
+      throw new Error(`Invalid CHROMA_HOST URL format: ${chromaHost}. Error: ${urlError.message}`);
+    }
+    
+    // Log the URL being used for debugging
+    console.log(`[ChromaDB] Initializing with URL: ${chromaUrl}`);
+    
+    // For ChromaDB cloud, use the full URL as the path
+    // The path parameter should be the full base URL with protocol
+    const clientConfig = {
+      path: chromaUrl,
+    };
+    
+    // Add auth if API key is provided
+    if (process.env.CHROMA_API_KEY) {
+      clientConfig.auth = {
         provider: 'token',
         credentials: process.env.CHROMA_API_KEY,
         tokenHeaderType: 'X_CHROMA_TOKEN'
-      },
-      tenant: process.env.CHROMA_TENANT || 'default_tenant',
-      database: process.env.CHROMA_DATABASE || 'default_database'
-    });
+      };
+    }
+    
+    // Add tenant and database if provided
+    if (process.env.CHROMA_TENANT) {
+      clientConfig.tenant = process.env.CHROMA_TENANT;
+    }
+    if (process.env.CHROMA_DATABASE) {
+      clientConfig.database = process.env.CHROMA_DATABASE;
+    }
+    
+    client = new ChromaClient(clientConfig);
 
     // Get or create the attacks collection
     // Note: ChromaDB cloud may have dimension requirements
