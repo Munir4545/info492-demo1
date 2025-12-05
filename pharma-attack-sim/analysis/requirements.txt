@@ -8,3 +8,5 @@ notebook
 ipykernel
 numpy
 scipy
+chromadb
+requests
